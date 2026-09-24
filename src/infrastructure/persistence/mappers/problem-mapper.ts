@@ -1,5 +1,6 @@
 import { Problem } from "@/domain/problem/problem";
 import type { Requirement } from "@/domain/problem/requirement";
+import { isEvaluationCriterion } from "@/domain/problem/rubric";
 import type { Rubric } from "@/domain/problem/rubric";
 import { PersistenceMappingError } from "../persistence-errors";
 import type { ProblemRow } from "./rows";
@@ -26,11 +27,20 @@ export function toProblem(row: ProblemRow): Problem {
     version: row.rubric.version,
     criteria: row.rubric.criteria
       .toSorted((left, right) => left.position - right.position)
-      .map((criterion) => ({
-        criterion: criterion.criterion,
-        weight: criterion.weight,
-        guidance: criterion.guidance,
-      })),
+      .map((criterion) => {
+        // The column can hold deterministic criteria too; a rubric asks a judge
+        // for an opinion, so only the semantic ones belong in one.
+        if (!isEvaluationCriterion(criterion.criterion)) {
+          throw new PersistenceMappingError(
+            `Problem "${row.id}" has a rubric criterion "${criterion.criterion}", which is a deterministic criterion and cannot be judged against a rubric.`,
+          );
+        }
+        return {
+          criterion: criterion.criterion,
+          weight: criterion.weight,
+          guidance: criterion.guidance,
+        };
+      }),
   };
 
   // Problem.create re-checks every domain invariant, so a row that was edited

@@ -1,5 +1,5 @@
-import type { EvaluationCriterion } from "../problem/rubric";
 import type { Evidence } from "../feedback/evidence";
+import type { ReviewCriterion } from "./review-criterion";
 
 export const CRITERION_ASSESSMENTS = [
   "STRONG",
@@ -10,8 +10,20 @@ export const CRITERION_ASSESSMENTS = [
 
 export type CriterionAssessment = (typeof CRITERION_ASSESSMENTS)[number];
 
+/**
+ * Assessments a factual result may use. A deterministic evaluator never claims
+ * STRONG: "the check passes" is a fact, "this is strong design" is a judgement.
+ */
+export const FACTUAL_ASSESSMENTS = [
+  "ADEQUATE",
+  "NEEDS_IMPROVEMENT",
+  "MISSING",
+] as const;
+
+export type FactualAssessment = (typeof FACTUAL_ASSESSMENTS)[number];
+
 export interface CriterionResult {
-  readonly criterion: EvaluationCriterion;
+  readonly criterion: ReviewCriterion;
   readonly assessment: CriterionAssessment;
   readonly evidence: readonly Evidence[];
   readonly concern?: string;

@@ -18,6 +18,7 @@ export default defineConfig({
         "src/domain/**/*.ts",
         "src/application/**/*.ts",
         "src/infrastructure/**/*.ts",
+        "src/evaluation-engine/**/*.ts",
       ],
       exclude: [
         "src/**/*.test.ts",

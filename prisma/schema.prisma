@@ -55,6 +55,12 @@ enum RelationshipType {
   DEPENDENCY
 }
 
+/// Every criterion a stored evaluation may report on.
+///
+/// The first group is the rubric's semantic criteria, which only a judge can
+/// assess. The second is the deterministic set, settled from the submission
+/// itself. A problem rubric may only reference the semantic ones; the domain type
+/// `Rubric` enforces that, because SQL cannot express a subset of an enum.
 enum EvaluationCriterion {
   REQUIREMENT_UNDERSTANDING
   RESPONSIBILITY
@@ -66,6 +72,12 @@ enum EvaluationCriterion {
   EDGE_CASES
   DESIGN_REASONING
   TESTABILITY
+
+  STRUCTURAL_VALIDITY
+  REQUIREMENT_COVERAGE
+  DESIGN_COMPLETENESS
+  EDGE_CASE_COVERAGE
+  DESIGN_DECISIONS
 }
 
 enum CriterionAssessment {
@@ -409,6 +421,9 @@ model EvaluationFeedbackItem {
   evaluationId String
   priority     FeedbackPriority
   criterion    EvaluationCriterion?
+  /// Machine-readable reason the item exists, so a benchmark can count findings
+  /// without parsing prose. Deterministic findings always set it.
+  code         String?
   what         String
   why          String
   reconsider   String?

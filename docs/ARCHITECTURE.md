@@ -19,6 +19,12 @@ ports and adapters.
               │  state machines, validation │
               └─────────────────────────────┘
                              ▲
+              ┌──────────────┴──────────────┐
+              │ Evaluation engine           │
+              │  RuleBasedEvaluator         │
+              │  (implements DesignEvaluator)│
+              └─────────────────────────────┘
+                             ▲
                              │  implements the ports
               ┌──────────────┴──────────────┐
               │ Infrastructure              │
@@ -91,6 +97,36 @@ The rule is checked mechanically, not by convention: `.oxlintrc.json` restricts
 imports per directory, and `tests/architecture/layering.test.ts` scans every
 non-test source file under `src/domain` and `src/application` for forbidden
 specifiers — including anything matching `prisma` and the generated client path.
+
+## The evaluation engine
+
+`src/evaluation-engine` implements the `DesignEvaluator` port. It sits beside the
+domain rather than inside infrastructure: it is pure logic over entities, needs no
+database, no network and no framework, and the same architecture test that guards
+the domain guards it.
+
+```text
+EvaluateAttempt  →  DesignEvaluator (port)  →  RuleBasedEvaluator
+                                                (5 rule modules + composer)
+```
+
+The engine reports on five criteria it can settle from the submission alone:
+`STRUCTURAL_VALIDITY`, `REQUIREMENT_COVERAGE`, `DESIGN_COMPLETENESS`,
+`EDGE_CASE_COVERAGE` and `DESIGN_DECISIONS`. They are a separate set from the
+rubric's ten semantic criteria, and `natureOf(criterion)` derives which kind a
+stored result is. Three rules follow from that split and are each covered by a
+test:
+
+- The deterministic evaluator **never emits STRONG**. "The check passes" is a
+  fact; "this is strong design" is a judgement.
+- It **never attaches confidence**. There is nothing to hedge about a fact.
+- It **adds no design rules of its own**. `validateStructuredDesign` is still the
+  only place design rules live; the engine routes each of its issues to a
+  criterion and resolves evidence back to the submitted design.
+
+Coverage is decided only by explicit requirement mappings. A class whose name
+merely sounds relevant is not evidence, so a design with different names, fewer
+classes or no interfaces is never marked down for the shape it chose.
 
 ## Persistence design notes
 

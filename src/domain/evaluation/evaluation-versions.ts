@@ -9,6 +9,13 @@ export interface EvaluationVersions {
   readonly knowledgeVersion: string;
 }
 
+/**
+ * Recorded where a version has no meaning for the evaluator that ran. A
+ * deterministic evaluator uses no prompt and no knowledge base, and saying so is
+ * clearer than storing an empty string that reads like a missing value.
+ */
+export const NOT_APPLICABLE_VERSION = "not-applicable";
+
 export function buildEvaluationIdempotencyKey(input: {
   readonly attemptId: string;
   readonly submissionVersion: number;

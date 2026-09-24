@@ -2,7 +2,7 @@ import type { CriterionAssessment } from "@/domain/evaluation/criterion-result";
 import type { EvaluationStatus } from "@/domain/evaluation/evaluation-status";
 import type { AttemptStatus } from "@/domain/attempt/attempt-status";
 import type { FeedbackPriority } from "@/domain/feedback/feedback-item";
-import type { EvaluationCriterion } from "@/domain/problem/rubric";
+import type { ReviewCriterion } from "@/domain/evaluation/review-criterion";
 import type { RequirementPriority } from "@/domain/problem/requirement";
 import type { RelationshipType } from "@/domain/design/relationship-type";
 import type { SubmissionFormatType } from "@/domain/submission/submission-format-type";
@@ -27,7 +27,11 @@ export interface RequirementRow {
 }
 
 export interface RubricCriterionRow {
-  readonly criterion: EvaluationCriterion;
+  /**
+   * Widened to every criterion the column can hold. A rubric may only reference
+   * the semantic ones, which the mapper checks rather than assumes.
+   */
+  readonly criterion: ReviewCriterion;
   readonly weight: number;
   readonly guidance: string;
   readonly position: number;
@@ -145,7 +149,7 @@ export interface EvaluationEvidenceRow {
 }
 
 export interface EvaluationCriterionResultRow {
-  readonly criterion: EvaluationCriterion;
+  readonly criterion: ReviewCriterion;
   readonly assessment: CriterionAssessment;
   readonly concern: string | null;
   readonly suggestion: string | null;
@@ -157,7 +161,8 @@ export interface EvaluationCriterionResultRow {
 export interface EvaluationFeedbackItemRow {
   readonly id: string;
   readonly priority: FeedbackPriority;
-  readonly criterion: EvaluationCriterion | null;
+  readonly criterion: ReviewCriterion | null;
+  readonly code: string | null;
   readonly what: string;
   readonly why: string;
   readonly reconsider: string | null;

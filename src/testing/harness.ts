@@ -7,7 +7,10 @@ import {
 import { FixedClock } from "./fixed-clock";
 import { SequentialIdGenerator } from "./sequential-id-generator";
 import { parkingLotProblem } from "./fixtures";
+import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { Problem } from "@/domain/problem/problem";
+import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
+import { EvaluateAttempt } from "@/application/use-cases/evaluate-attempt";
 import { GetAttempt } from "@/application/use-cases/get-attempt";
 import { GetAttemptHistory } from "@/application/use-cases/get-attempt-history";
 import { RetryEvaluation } from "@/application/use-cases/retry-evaluation";
@@ -23,7 +26,9 @@ export interface Harness {
   readonly evaluations: InMemoryEvaluationRepository;
   readonly clock: FixedClock;
   readonly ids: SequentialIdGenerator;
+  readonly evaluator: DesignEvaluator;
   readonly startAttempt: StartAttempt;
+  readonly evaluateAttempt: EvaluateAttempt;
   readonly saveDraft: SaveDraft;
   readonly submitAttempt: SubmitAttempt;
   readonly getAttempt: GetAttempt;
@@ -31,7 +36,10 @@ export interface Harness {
   readonly retryEvaluation: RetryEvaluation;
 }
 
-export function createHarness(problem: Problem = parkingLotProblem()): Harness {
+export function createHarness(
+  problem: Problem = parkingLotProblem(),
+  evaluator: DesignEvaluator = new RuleBasedEvaluator(),
+): Harness {
   const problems = new InMemoryProblemRepository([problem]);
   const attempts = new InMemoryAttemptRepository();
   const submissions = new InMemorySubmissionRepository();
@@ -47,7 +55,17 @@ export function createHarness(problem: Problem = parkingLotProblem()): Harness {
     evaluations,
     clock,
     ids,
+    evaluator,
     startAttempt: new StartAttempt({ problems, attempts, ids, clock }),
+    evaluateAttempt: new EvaluateAttempt({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
+      evaluator,
+      ids,
+      clock,
+    }),
     saveDraft: new SaveDraft({ attempts, problems, clock }),
     submitAttempt: new SubmitAttempt({
       attempts,

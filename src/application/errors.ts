@@ -1,8 +1,8 @@
 export abstract class ApplicationError extends Error {
   abstract readonly code: string;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { readonly cause?: unknown }) {
+    super(message, options);
     this.name = new.target.name;
   }
 }
@@ -50,6 +50,25 @@ export class UnsupportedSubmissionFormatError extends ApplicationError {
   ) {
     super(
       `Submission format "${detail.formatType}" is not accepted here. Accepted: ${detail.accepted.join(", ")}.`,
+    );
+  }
+}
+
+export class EvaluationExecutionError extends ApplicationError {
+  readonly code = "EVALUATION_EXECUTION_FAILED";
+
+  constructor(
+    readonly detail: {
+      readonly attemptId: string;
+      readonly submissionId: string;
+      readonly evaluationId: string;
+      readonly evaluatorVersion: string;
+    },
+    cause: unknown,
+  ) {
+    super(
+      `Evaluation ${detail.evaluationId} of submission ${detail.submissionId} failed. The submission is unchanged and the evaluation can be retried.`,
+      { cause },
     );
   }
 }

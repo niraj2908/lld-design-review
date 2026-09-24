@@ -2,6 +2,7 @@ import type { StructuredDesign } from "@/domain/design/structured-design";
 import { Problem } from "@/domain/problem/problem";
 import type { Requirement } from "@/domain/problem/requirement";
 import type { Rubric } from "@/domain/problem/rubric";
+import { Submission } from "@/domain/submission/submission";
 import { STRUCTURED_DESIGN } from "@/domain/submission/submission-format-type";
 
 export const LEARNER_ID = "learner_seed";
@@ -179,4 +180,19 @@ export function designForProblem(problem: Problem): StructuredDesign {
       },
     ),
   };
+}
+
+/** A submission carrying a design, without going through the submit use case. */
+export function submissionOf(
+  design: StructuredDesign,
+  overrides: { readonly id?: string; readonly version?: number } = {},
+): Submission {
+  return Submission.create({
+    id: overrides.id ?? "sub_fixture",
+    attemptId: "att_fixture",
+    version: overrides.version ?? 1,
+    formatType: STRUCTURED_DESIGN,
+    payload: design,
+    createdAt: new Date("2026-03-01T09:00:00.000Z"),
+  });
 }

@@ -6,13 +6,13 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 2 — persistence
+## Status: milestone 3 — deterministic evaluation engine
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
 the first use cases.
 
-Milestone 2 adds PostgreSQL behind those ports:
+Milestone 2 added PostgreSQL behind those ports:
 
 - Prisma schema and the initial migration (20 tables, pgvector enabled),
 - Prisma adapters for the four repository ports,
@@ -20,9 +20,15 @@ Milestone 2 adds PostgreSQL behind those ports:
 - a deterministic, rerunnable seed with the four MVP problems,
 - integration tests that run the milestone-1 use cases against a real database.
 
-Not yet built: the evaluation engine, the Groq provider, retrieval, the async
-dispatcher, API routes and the UI. pgvector is enabled but no vector column,
-index or retrieval code exists.
+Milestone 3 adds the first evaluator:
+
+- `src/evaluation-engine` — a `RuleBasedEvaluator` that reports only what can be
+  checked from the submission, behind the `DesignEvaluator` port,
+- the `EvaluateAttempt` use case, running synchronously and idempotently,
+- five deterministic criteria kept separate from the rubric's semantic ones.
+
+Not yet built: the Groq provider, retrieval, the async dispatcher, API routes and
+the UI. pgvector is enabled but no vector column, index or retrieval code exists.
 
 ## Prerequisites
 

@@ -13,6 +13,15 @@ export const EVALUATION_CRITERIA = [
 
 export type EvaluationCriterion = (typeof EVALUATION_CRITERIA)[number];
 
+export function isEvaluationCriterion(
+  value: unknown,
+): value is EvaluationCriterion {
+  return (
+    typeof value === "string" &&
+    (EVALUATION_CRITERIA as readonly string[]).includes(value)
+  );
+}
+
 export interface RubricCriterion {
   readonly criterion: EvaluationCriterion;
   readonly weight: number;

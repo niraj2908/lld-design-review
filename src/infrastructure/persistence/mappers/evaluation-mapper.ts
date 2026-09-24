@@ -6,7 +6,7 @@ import type {
 } from "@/domain/evaluation/evaluation-outcome";
 import type { Evidence } from "@/domain/feedback/evidence";
 import type { FeedbackItem } from "@/domain/feedback/feedback-item";
-import type { EvaluationCriterion } from "@/domain/problem/rubric";
+import type { ReviewCriterion } from "@/domain/evaluation/review-criterion";
 import { PersistenceMappingError } from "../persistence-errors";
 import type {
   EvaluationEvidenceRow,
@@ -45,7 +45,8 @@ export interface EvaluationChildrenData {
   readonly feedbackItems: {
     readonly id: string;
     readonly priority: FeedbackItem["priority"];
-    readonly criterion: EvaluationCriterion | null;
+    readonly criterion: ReviewCriterion | null;
+    readonly code: string | null;
     readonly what: string;
     readonly why: string;
     readonly reconsider: string | null;
@@ -109,6 +110,7 @@ export function toEvaluationChildrenData(
       id: item.id,
       priority: item.priority,
       criterion: item.criterion ?? null,
+      code: item.code ?? null,
       what: item.what,
       why: item.why,
       reconsider: item.reconsider ?? null,
@@ -213,6 +215,9 @@ function toFeedbackItem(
   };
   if (row.criterion !== null) {
     item = { ...item, criterion: row.criterion };
+  }
+  if (row.code !== null) {
+    item = { ...item, code: row.code };
   }
   if (row.reconsider !== null) {
     item = { ...item, reconsider: row.reconsider };

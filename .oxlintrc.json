@@ -88,6 +88,36 @@
     },
     {
       "files": [
+        "src/evaluation-engine/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "next",
+              "next/*",
+              "react",
+              "react-dom",
+              "prisma",
+              "@prisma/*",
+              "pg",
+              "groq-sdk",
+              "openai",
+              "kafkajs",
+              "ioredis",
+              "redis",
+              "node:*",
+              "@/infrastructure/*",
+              "@/app/*",
+              "@/testing/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
         "**/*.test.ts",
         "src/testing/**/*.ts",
         "tests/**/*.ts"

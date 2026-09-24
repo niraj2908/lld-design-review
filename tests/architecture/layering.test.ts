@@ -26,6 +26,27 @@ const FORBIDDEN_IN_DOMAIN = [
 /** Prisma's generated client is infrastructure, wherever it is emitted. */
 const GENERATED_CLIENT = /infrastructure\/persistence\/prisma\/client/;
 
+/**
+ * The evaluation engine is domain logic with an application port for a seam. It
+ * must stay as infrastructure-free as the domain itself.
+ */
+const FORBIDDEN_IN_ENGINE = [
+  /^next(\/|$)/,
+  /^react(-dom)?(\/|$)/,
+  /^@prisma\//,
+  /^prisma(\/|$)/,
+  /^pg(\/|$)/,
+  /^groq-sdk(\/|$)/,
+  /^openai(\/|$)/,
+  /^kafkajs(\/|$)/,
+  /^(io)?redis(\/|$)/,
+  /^node:/,
+  /^(fs|path|http|https|crypto|child_process)$/,
+  /^@\/infrastructure\//,
+  /^@\/app\//,
+  /^@\/testing\//,
+];
+
 const FORBIDDEN_IN_APPLICATION = [
   /^next(\/|$)/,
   /^react(-dom)?(\/|$)/,
@@ -105,9 +126,38 @@ describe("dependency direction", () => {
     expect(files.length).toBeGreaterThan(15);
   });
 
+  it("keeps the evaluation engine free of frameworks and infrastructure", async () => {
+    expect(await violations("src/evaluation-engine", FORBIDDEN_IN_ENGINE)).toEqual(
+      [],
+    );
+  });
+
+  it("lets the evaluation engine depend only on the domain and application ports", async () => {
+    const outside: string[] = [];
+    for (const file of await sourceFiles(join(ROOT, "src/evaluation-engine"))) {
+      for (const specifier of importsOf(file)) {
+        if (
+          specifier.startsWith("@/") &&
+          !specifier.startsWith("@/domain/") &&
+          !specifier.startsWith("@/application/ports/")
+        ) {
+          outside.push(`${relative(ROOT, file)} imports "${specifier}"`);
+        }
+      }
+    }
+
+    expect(outside).toEqual([]);
+  });
+
+  it("finds engine sources to check, so a passing result is meaningful", async () => {
+    const files = await sourceFiles(join(ROOT, "src/evaluation-engine"));
+
+    expect(files.length).toBeGreaterThan(5);
+  });
+
   it("keeps Prisma inside the infrastructure layer", async () => {
     const prismaImporters: string[] = [];
-    for (const directory of ["src/domain", "src/application"]) {
+    for (const directory of ["src/domain", "src/application", "src/evaluation-engine"]) {
       for (const file of await sourceFiles(join(ROOT, directory))) {
         for (const specifier of importsOf(file)) {
           if (

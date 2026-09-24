@@ -1,3 +1,4 @@
+export * from "./evaluate-attempt";
 export * from "./get-attempt";
 export * from "./get-attempt-history";
 export * from "./retry-evaluation";
