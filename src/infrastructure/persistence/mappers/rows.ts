@@ -181,6 +181,7 @@ export interface EvaluationRow {
   readonly knowledgeVersion: string;
   readonly provider: string | null;
   readonly model: string | null;
+  readonly embeddingModel: string | null;
   readonly idempotencyKey: string;
   readonly attemptCount: number;
   readonly summary: string | null;
@@ -194,4 +195,18 @@ export interface EvaluationRow {
   readonly completedAt: Date | null;
   readonly criterionResults: readonly EvaluationCriterionResultRow[];
   readonly feedbackItems: readonly EvaluationFeedbackItemRow[];
+  readonly knowledgeCitations: readonly EvaluationKnowledgeCitationRow[];
+}
+
+export interface EvaluationKnowledgeCitationRow {
+  readonly ref: string;
+  readonly rank: number;
+  readonly chunkId: string;
+  readonly documentId: string;
+  readonly title: string;
+  readonly source: string;
+  readonly topic: string;
+  readonly documentVersion: string;
+  readonly score: number;
+  readonly embeddingModel: string;
 }

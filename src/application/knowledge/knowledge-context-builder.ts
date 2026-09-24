@@ -1,6 +1,13 @@
+import type { KnowledgeCitation } from "@/domain/evaluation/knowledge-citation";
 import type { RetrievedKnowledge } from "@/domain/knowledge/knowledge-chunk";
-import type { KnowledgeFilter } from "../ports/knowledge-repository";
+import type {
+  KnowledgeContext,
+  KnowledgeContextProvider,
+  KnowledgeContextRequest,
+} from "../ports/knowledge-context";
 import type { KnowledgeRetriever } from "../ports/knowledge-retriever";
+
+export type { KnowledgeCitation, KnowledgeContext, KnowledgeContextRequest };
 
 /** Bumped when the rendered shape changes, so a stored evaluation stays explicable. */
 export const KNOWLEDGE_CONTEXT_VERSION = "knowledge-context-v1";
@@ -9,39 +16,15 @@ export const DEFAULT_KNOWLEDGE_LIMIT = 6;
 /** Upper bound on rendered characters, so retrieval cannot crowd out the submission. */
 export const DEFAULT_KNOWLEDGE_BUDGET_CHARS = 6_000;
 
-export interface KnowledgeContextRequest {
-  readonly query: string;
-  readonly limit?: number;
-  readonly budgetChars?: number;
-  readonly filter?: KnowledgeFilter;
+export function emptyKnowledgeContext(embeddingModel: string): KnowledgeContext {
+  return {
+    version: KNOWLEDGE_CONTEXT_VERSION,
+    embeddingModel,
+    text: "",
+    citations: [],
+    truncated: false,
+  };
 }
-
-export interface KnowledgeCitation {
-  readonly ref: string;
-  readonly chunkId: string;
-  readonly documentId: string;
-  readonly title: string;
-  readonly source: string;
-  readonly topic: string;
-  readonly version: string;
-  readonly score: number;
-}
-
-export interface KnowledgeContext {
-  readonly version: string;
-  /** Ready to drop into a prompt. Empty when nothing was retrieved. */
-  readonly text: string;
-  readonly citations: readonly KnowledgeCitation[];
-  /** True when the budget cut material that was retrieved. */
-  readonly truncated: boolean;
-}
-
-export const EMPTY_KNOWLEDGE_CONTEXT: KnowledgeContext = {
-  version: KNOWLEDGE_CONTEXT_VERSION,
-  text: "",
-  citations: [],
-  truncated: false,
-};
 
 /**
  * Turns retrieved material into a block a prompt can carry.
@@ -56,27 +39,62 @@ export const EMPTY_KNOWLEDGE_CONTEXT: KnowledgeContext = {
  * about designs, so there is nothing here for a caller to compare a submission
  * against.
  */
-export class KnowledgeContextBuilder {
+export class KnowledgeContextBuilder implements KnowledgeContextProvider {
   constructor(private readonly retriever: KnowledgeRetriever) {}
 
   async build(request: KnowledgeContextRequest): Promise<KnowledgeContext> {
-    const retrieved = await this.retriever.retrieve({
-      text: request.query,
-      limit: request.limit ?? DEFAULT_KNOWLEDGE_LIMIT,
-      ...(request.filter === undefined ? {} : { filter: request.filter }),
-    });
+    return this.buildMany([request]);
+  }
 
-    if (retrieved.length === 0) {
-      return EMPTY_KNOWLEDGE_CONTEXT;
+  /**
+   * Runs several bounded queries and renders one block from the union.
+   *
+   * Two complementary queries retrieve better than one for this product — general
+   * design principles and guidance written for the problem at hand compete for the
+   * same slots in a single query — while staying to one round trip each rather than
+   * one per criterion. Results are merged by chunk, so a passage retrieved by both
+   * queries appears once, and ordered by score then chunk id so the same inputs
+   * always produce the same block.
+   */
+  async buildMany(
+    requests: readonly KnowledgeContextRequest[],
+  ): Promise<KnowledgeContext> {
+    const byChunk = new Map<string, RetrievedKnowledge>();
+    let budget = DEFAULT_KNOWLEDGE_BUDGET_CHARS;
+
+    for (const request of requests) {
+      budget = request.budgetChars ?? budget;
+      const retrieved = await this.retriever.retrieve({
+        text: request.query,
+        limit: request.limit ?? DEFAULT_KNOWLEDGE_LIMIT,
+        ...(request.filter === undefined ? {} : { filter: request.filter }),
+      });
+
+      for (const item of retrieved) {
+        const existing = byChunk.get(item.chunk.id);
+        if (existing === undefined || item.score > existing.score) {
+          byChunk.set(item.chunk.id, item);
+        }
+      }
     }
 
-    return render(retrieved, request.budgetChars ?? DEFAULT_KNOWLEDGE_BUDGET_CHARS);
+    if (byChunk.size === 0) {
+      return emptyKnowledgeContext(this.retriever.embeddingModel);
+    }
+
+    const merged = [...byChunk.values()].toSorted(
+      (left, right) =>
+        right.score - left.score || left.chunk.id.localeCompare(right.chunk.id),
+    );
+
+    return render(merged, budget, this.retriever.embeddingModel);
   }
 }
 
 function render(
   retrieved: readonly RetrievedKnowledge[],
   budgetChars: number,
+  embeddingModel: string,
 ): KnowledgeContext {
   const citations: KnowledgeCitation[] = [];
   const passages: string[] = [];
@@ -100,13 +118,15 @@ function render(
     passages.push(passage);
     citations.push({
       ref,
+      rank: citations.length + 1,
       chunkId: item.chunk.id,
       documentId: item.chunk.documentId,
       title: item.document.title,
       source: item.document.source,
       topic: item.document.topic,
-      version: item.document.version,
+      documentVersion: item.document.version,
       score: item.score,
+      embeddingModel,
     });
   });
 
@@ -121,6 +141,7 @@ function render(
 
   return {
     version: KNOWLEDGE_CONTEXT_VERSION,
+    embeddingModel,
     text,
     citations,
     truncated,

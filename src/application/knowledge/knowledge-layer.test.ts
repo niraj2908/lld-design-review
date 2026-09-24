@@ -10,7 +10,7 @@ import {
 import { IngestKnowledge } from "./ingest-knowledge";
 import {
   DEFAULT_KNOWLEDGE_LIMIT,
-  EMPTY_KNOWLEDGE_CONTEXT,
+  emptyKnowledgeContext,
   KNOWLEDGE_CONTEXT_VERSION,
   KnowledgeContextBuilder,
   fenceSafe,
@@ -355,7 +355,9 @@ describe("KnowledgeContextBuilder", () => {
     expect(context.version).toBe(KNOWLEDGE_CONTEXT_VERSION);
     expect(context.citations).toHaveLength(2);
     expect(context.citations[0]?.ref).toBe("K1");
+    expect(context.citations[0]?.rank).toBe(1);
     expect(context.citations[0]?.chunkId).toBe("kchk_cohesion_000");
+    expect(context.citations[0]?.embeddingModel).toBe("fake-embedding-v1");
     expect(context.text).toContain("[K1]");
     expect(context.text).toContain("Cohesion means");
     expect(context.truncated).toBe(false);
@@ -385,7 +387,7 @@ describe("KnowledgeContextBuilder", () => {
       documentId: PARKING.id,
       source: "problem guidance",
       topic: "PROBLEM_GUIDANCE",
-      version: "kb-v1",
+      documentVersion: "kb-v1",
     });
     expect(context.text).toContain("problem guidance");
   });
@@ -400,8 +402,9 @@ describe("KnowledgeContextBuilder", () => {
       query: "anything",
     });
 
-    expect(context).toEqual(EMPTY_KNOWLEDGE_CONTEXT);
+    expect(context).toEqual(emptyKnowledgeContext("fake-embedding-v1"));
     expect(context.text).toBe("");
+    expect(context.citations).toEqual([]);
   });
 
   it("stops at the character budget and says it truncated", async () => {

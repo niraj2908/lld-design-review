@@ -223,7 +223,8 @@ describe("knowledge base against PostgreSQL and pgvector", () => {
     expect(context.text).toContain("REFERENCE MATERIAL");
     expect(context.text).toContain("[K1]");
     expect(context.citations[0]?.chunkId).toMatch(/^kchk_guidance-parking-lot/u);
-    expect(context.citations[0]?.version).toBe("lld-kb-v1");
+    expect(context.citations[0]?.documentVersion).toBe("lld-kb-v1");
+    expect(context.citations[0]?.embeddingModel).toBe("hashing-bag-of-words-v1");
   });
 
   it("refuses a store and a provider that disagree on width", () => {

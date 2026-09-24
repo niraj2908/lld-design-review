@@ -10,6 +10,11 @@ export interface EvaluationVersions {
   /** Absent for an evaluator that consults no model, such as the rule evaluator. */
   readonly provider?: string;
   readonly model?: string;
+  /**
+   * Which model produced the vectors used to retrieve reference knowledge. Absent
+   * when no knowledge was consulted.
+   */
+  readonly embeddingModel?: string;
 }
 
 /**

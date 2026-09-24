@@ -30,4 +30,5 @@ export const SUBMISSION_INCLUDE = {
 export const EVALUATION_INCLUDE = {
   criterionResults: { include: { evidence: true } },
   feedbackItems: { include: { evidence: true } },
+  knowledgeCitations: true,
 } as const;

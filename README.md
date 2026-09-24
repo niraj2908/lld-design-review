@@ -6,7 +6,7 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 5 — RAG knowledge layer
+## Status: milestone 6 — RAG-integrated hybrid review
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
@@ -39,8 +39,7 @@ Milestone 4 added a semantic evaluator beside it:
 
 The whole test suite runs without a Groq key: only the provider is faked.
 
-Milestone 5 adds the knowledge layer the evaluator and the future Design Coach
-will consult:
+Milestone 5 added the knowledge layer:
 
 - a curated knowledge base of design guidance — 31 documents, 46 chunks — stored
   in PostgreSQL with pgvector,
@@ -51,9 +50,35 @@ will consult:
 - a `KnowledgeContextBuilder` that renders retrieved passages as cited reference
   material.
 
-The knowledge base holds **guidance, never solutions**: it explains how to reason
-about a design, and contains no class list or worked answer for any problem. The
-existing evaluator is unchanged — the integration point is ready, not wired.
+Milestone 6 connects the two:
+
+```text
+Deterministic checks  +  Semantic AI judgment  +  Grounded design knowledge
+                      =  Hybrid Design Review
+```
+
+The pipeline is: submission → deterministic evaluation → knowledge retrieval → AI
+semantic evaluation → evidence validation → merged outcome → persisted evaluation
+with knowledge provenance.
+
+What that does and does not mean:
+
+- **RAG supplies design guidance, not a solution.** The knowledge base explains how
+  to reason about a decision. It holds no class list or worked answer for any
+  problem, and the prompt tells the judge that a passage which reads like a
+  prescription is not one.
+- **Deterministic findings stay authoritative.** The two evaluators report on
+  disjoint criterion sets, so the judge has no criterion on which it could
+  contradict a fact.
+- **AI findings are judgements, not truth.** They carry confidence and are marked
+  `SEMANTIC`; the structural results carry neither.
+- **Learner evidence and reference knowledge are separate.** Evidence must resolve
+  to something in the submitted design; a retrieved passage can never become
+  evidence that the learner did anything. A finding that loses its evidence is
+  dropped.
+- **Every evaluation records what informed it** — evaluator, prompt, provider,
+  model, knowledge version, embedding model, and one citation row per passage the
+  judge was shown.
 
 Not yet built: the Design Coach, the async dispatcher, API routes and the UI.
 

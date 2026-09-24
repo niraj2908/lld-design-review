@@ -44,6 +44,12 @@ export interface EvaluateAttemptResult {
   readonly idempotencyKey: string;
   /** True when a completed evaluation already existed and was returned unchanged. */
   readonly reused: boolean;
+  /**
+   * How many reference-knowledge passages informed the semantic review. Reported
+   * rather than logged: the caller decides what to do with it, and the same numbers
+   * are on the stored evaluation for anyone asking later.
+   */
+  readonly retrievedKnowledgeCount: number;
 }
 
 export interface EvaluateAttemptDeps {
@@ -117,6 +123,8 @@ export class EvaluateAttempt {
         attemptStatus: attempt.status,
         idempotencyKey,
         reused: true,
+        retrievedKnowledgeCount:
+          existing.outcome?.knowledgeCitations?.length ?? 0,
       };
     }
 
@@ -189,6 +197,8 @@ export class EvaluateAttempt {
       attemptStatus: attempt.status,
       idempotencyKey,
       reused: false,
+      retrievedKnowledgeCount:
+        evaluation.outcome?.knowledgeCitations?.length ?? 0,
     };
   }
 

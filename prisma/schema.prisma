@@ -373,6 +373,9 @@ model Evaluation {
   /// Never holds a credential: the provider name and the model id only.
   provider         String?
   model            String?
+  /// Which model produced the vectors used to retrieve reference knowledge, where
+  /// any was consulted. Never a credential: a model id only.
+  embeddingModel   String?
   idempotencyKey   String           @unique
   attemptCount     Int
   /// Outcome columns are null until the evaluation completes. `strengths` is a
@@ -388,9 +391,10 @@ model Evaluation {
   startedAt        DateTime?
   completedAt      DateTime?
 
-  submission       Submission                  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  criterionResults EvaluationCriterionResult[]
-  feedbackItems    EvaluationFeedbackItem[]
+  submission         Submission                    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterionResults   EvaluationCriterionResult[]
+  feedbackItems      EvaluationFeedbackItem[]
+  knowledgeCitations EvaluationKnowledgeCitation[]
 
   @@index([submissionId])
   @@index([status])
@@ -473,16 +477,16 @@ model EvaluationFeedbackEvidence {
 /// would turn retrieval into comparison and contradict the product's premise that
 /// several designs can be right.
 model KnowledgeDocument {
-  id      String         @id
+  id          String         @id
   /// Human-stable identity. Document and chunk ids derive from it, which is what
   /// makes ingestion rerunnable.
-  slug    String         @unique
-  title   String
+  slug        String         @unique
+  title       String
   /// Where the material came from, kept so a citation can be audited.
-  source  String
-  topic   KnowledgeTopic
-  version String
-  content String
+  source      String
+  topic       KnowledgeTopic
+  version     String
+  content     String
   /// Set only on guidance written for one problem, so retrieval can be filtered
   /// to it. Not a foreign key: guidance is versioned independently of the problem
   /// catalogue and must survive a problem being reworked.
@@ -521,4 +525,38 @@ model KnowledgeChunk {
   @@index([topic])
   @@index([problemSlug])
   @@map("knowledge_chunks")
+}
+
+/// Which reference knowledge was put in front of the judge for one evaluation.
+///
+/// Provenance, not evidence: it answers "what knowledge informed this review?" and
+/// says nothing about what the learner submitted. The passage text is not copied —
+/// the chunk id and the document version are enough to fetch it back exactly as it
+/// was, and duplicating it here would let the two drift apart.
+///
+/// Not a foreign key to knowledge_chunks on purpose: a stored evaluation must stay
+/// explicable after the knowledge base is re-ingested or a document is retired, and
+/// a cascade would erase the record of what a past review was shown.
+model EvaluationKnowledgeCitation {
+  id              String @id @default(uuid())
+  evaluationId    String
+  /// Label used in the prompt, for example `K1`.
+  ref             String
+  /// Retrieval rank, 1-based.
+  rank            Int
+  chunkId         String
+  documentId      String
+  title           String
+  source          String
+  topic           String
+  documentVersion String
+  score           Float
+  embeddingModel  String
+
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, chunkId])
+  @@index([evaluationId])
+  @@index([documentId])
+  @@map("evaluation_knowledge_citations")
 }

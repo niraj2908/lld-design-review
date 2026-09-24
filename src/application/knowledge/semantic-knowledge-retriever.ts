@@ -18,10 +18,14 @@ export const MAX_RETRIEVAL_LIMIT = 20;
  * repository adapter and leaves this untouched.
  */
 export class SemanticKnowledgeRetriever implements KnowledgeRetriever {
+  readonly embeddingModel: string;
+
   constructor(
     private readonly embeddings: EmbeddingProvider,
     private readonly knowledge: KnowledgeRepository,
   ) {
+    this.embeddingModel = embeddings.model;
+
     // Checked once, at construction: a provider that disagrees with the store can
     // never return a meaningful neighbour, so failing here beats failing per query.
     if (embeddings.dimensions !== knowledge.embeddingDimensions) {

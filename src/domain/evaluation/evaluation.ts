@@ -109,12 +109,20 @@ export class Evaluation {
     };
   }
 
+  /**
+   * Records the outcome, and with it the knowledge provenance the run discovered.
+   *
+   * Which documents were retrieved and which embedding model found them are not
+   * knowable when the evaluation is requested — only after it has run — so they are
+   * folded into the recorded versions here rather than guessed up front.
+   */
   complete(outcome: EvaluationOutcome, now: Date): void {
     assertEvaluationTransition(this.state.id, this.state.status, "COMPLETED");
     this.state = {
       ...this.state,
       status: "COMPLETED",
       outcome,
+      versions: withKnowledgeProvenance(this.state.versions, outcome),
       failure: null,
       completedAt: now,
       updatedAt: now,
@@ -135,4 +143,29 @@ export class Evaluation {
   toSnapshot(): EvaluationSnapshot {
     return { ...this.state };
   }
+}
+
+function withKnowledgeProvenance(
+  versions: EvaluationVersions,
+  outcome: EvaluationOutcome,
+): EvaluationVersions {
+  const citations = outcome.knowledgeCitations ?? [];
+  if (citations.length === 0) {
+    return versions;
+  }
+
+  const documentVersions = [
+    ...new Set(citations.map((citation) => citation.documentVersion)),
+  ].toSorted();
+  const embeddingModels = [
+    ...new Set(citations.map((citation) => citation.embeddingModel)),
+  ].toSorted();
+
+  return {
+    ...versions,
+    knowledgeVersion: documentVersions.join("+"),
+    ...(embeddingModels.length === 0
+      ? {}
+      : { embeddingModel: embeddingModels.join("+") }),
+  };
 }

@@ -16,7 +16,7 @@ const problem = parkingLotProblem();
 
 describe("the evaluator prompt", () => {
   it("is versioned", () => {
-    expect(AI_EVALUATOR_PROMPT_VERSION).toBe("ai-review-v1");
+    expect(AI_EVALUATOR_PROMPT_VERSION).toBe("ai-review-v2");
   });
 
   it("states that there is no design to compare against", () => {

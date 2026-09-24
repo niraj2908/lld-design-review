@@ -70,6 +70,7 @@ function rowFrom(evaluation: Evaluation): EvaluationRow {
       ...entry,
       evidence: entry.evidence.create.map((evidence) => ({ ...evidence })),
     })),
+    knowledgeCitations: children.knowledgeCitations.map((entry) => ({ ...entry })),
   };
 }
 

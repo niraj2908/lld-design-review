@@ -175,6 +175,68 @@ test that asserts the import appears in that path and no other. The API key is
 passed to the client and never stored on the provider, logged, or included in an
 error.
 
+## Hybrid review, grounded
+
+```text
+Submission
+   │
+   ▼  RuleBasedEvaluator ───────────────▶ deterministic findings (authoritative)
+   │                                          │
+   │                                          ▼ (query mentions the codes)
+   ├──▶ buildKnowledgeRequests ──▶ KnowledgeContextProvider (port) ──▶ retrieval
+   │         two bounded queries:                                        │
+   │         principles (topic filter)                                   │
+   │         problem guidance (problemSlug filter)                       │
+   │                                                                     ▼
+   └──▶ AIDesignEvaluator ◀── reference knowledge, fenced and cited ─────┘
+             │
+             ▼  schema validation, then evidence validation against the submission
+        semantic judgements + citations
+             │
+             ▼  HybridEvaluator concatenates (disjoint criteria)
+        one outcome, persisted with provenance
+```
+
+**Retrieval happens inside the judge, after the facts.** The deterministic outcome
+arrives in `EvaluationContext`, so the query can name the structural findings that
+are already settled. The judge reaches retrieval through
+`KnowledgeContextProvider`, a port — it never learns that retrieval is pgvector, and
+an architecture test asserts it does not import the builder that implements it.
+
+**The query is built from data, never from learner prose.** It carries the problem
+title, the author's MUST requirement titles, the criterion vocabulary, the
+deterministic finding codes, and *shapes* read off the design — element counts,
+which relationship kinds appear, whether decisions and edge cases were recorded. A
+submission therefore cannot steer retrieval, maliciously or otherwise, and a test
+asserts no learner text reaches the query.
+
+**Two queries, not nine.** Design principles and guidance written for the problem
+compete for the same slots in a single query, so they are separated by metadata
+filter; one query per criterion would multiply latency for heavily overlapping
+material. Results are merged by chunk, ordered by score then chunk id, and bounded
+to 5 000 characters.
+
+**Knowledge is not evidence, and the model is told so.** Evidence must resolve to an
+element of the submitted design; a passage title offered as evidence is rejected and
+counted, and a finding left without evidence is dropped. The prompt separates
+evaluator rules, reference knowledge, requirements, deterministic findings and the
+learner submission into distinct sections, and both the knowledge block and the
+learner block are fenced with their fence sequences neutralised.
+
+**Provenance, not a transcript.** `evaluation_knowledge_citations` records ref, rank,
+chunk id, document id, title, source, topic, document version, score and embedding
+model — enough to fetch the passage back exactly as it was, without copying text that
+could then drift. It is not a foreign key to `knowledge_chunks`: a stored evaluation
+must stay explicable after the knowledge base is re-ingested. `(evaluationId,
+chunkId)` is unique and the whole set is replaced with the outcome, so a retry cannot
+leave two runs' citations side by side.
+
+**Failure is explicit.** Retrieval that finds nothing is reported to the judge in
+words — "No relevant reference knowledge was retrieved" — so it neither assumes
+material was withheld nor invents a citation. Retrieval that fails propagates and
+fails the evaluation, like any other dependency; there is no silent ungrounded
+review and no partial state.
+
 ## The knowledge layer
 
 ```text

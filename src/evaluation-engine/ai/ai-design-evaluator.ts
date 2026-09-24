@@ -10,11 +10,13 @@ import type { EvaluationOutcome } from "@/domain/evaluation/evaluation-outcome";
 import { validateEvidence } from "@/domain/evaluation/evidence-validation";
 import type { Evidence } from "@/domain/feedback/evidence";
 import type { FeedbackItem } from "@/domain/feedback/feedback-item";
+import type { KnowledgeContextProvider } from "@/application/ports/knowledge-context";
 import {
   AI_EVALUATOR_PROMPT_VERSION,
   AI_SYSTEM_PROMPT,
   buildUserPrompt,
 } from "./ai-prompt";
+import { buildKnowledgeRequests } from "./knowledge-query";
 import { isAICriterion } from "./ai-criteria";
 import {
   AI_REVIEW_SCHEMA_NAME,
@@ -24,12 +26,18 @@ import {
 import type { AIReview } from "./ai-response-schema";
 
 /** Bump when the evaluator's own behaviour changes, not just the prompt. */
-export const AI_EVALUATOR_VERSION = "ai-v1";
+export const AI_EVALUATOR_VERSION = "ai-v2";
 
 export interface AIDesignEvaluatorOptions {
   readonly temperature?: number;
   readonly maxOutputTokens?: number;
   readonly timeoutMs?: number;
+  /**
+   * Retrieves design guidance to reason with. Optional: without it the judge works
+   * from the requirements and the submission alone, which is exactly what it did
+   * before a knowledge base existed.
+   */
+  readonly knowledge?: KnowledgeContextProvider;
 }
 
 const DEFAULTS = {
@@ -53,7 +61,10 @@ export class AIDesignEvaluator implements DesignEvaluator {
   readonly version = AI_EVALUATOR_VERSION;
   readonly metadata: EvaluatorMetadata;
 
-  private readonly options: Required<AIDesignEvaluatorOptions>;
+  private readonly options: Required<
+    Omit<AIDesignEvaluatorOptions, "knowledge">
+  >;
+  private readonly knowledge: KnowledgeContextProvider | undefined;
 
   constructor(
     private readonly llm: LLMProvider,
@@ -64,6 +75,7 @@ export class AIDesignEvaluator implements DesignEvaluator {
       maxOutputTokens: options.maxOutputTokens ?? DEFAULTS.maxOutputTokens,
       timeoutMs: options.timeoutMs ?? DEFAULTS.timeoutMs,
     };
+    this.knowledge = options.knowledge;
     this.metadata = {
       provider: llm.name,
       model: llm.model,
@@ -72,10 +84,16 @@ export class AIDesignEvaluator implements DesignEvaluator {
   }
 
   async evaluate(context: EvaluationContext): Promise<EvaluationOutcome> {
+    // Retrieval happens here, after the deterministic outcome has arrived in the
+    // context, so the query can say what the structural checker already settled. A
+    // retrieval failure is not swallowed: it fails the evaluation like any other
+    // dependency, rather than quietly producing an ungrounded review.
+    const grounded = await this.ground(context);
+
     const result = await this.llm.generateStructured({
       promptVersion: AI_EVALUATOR_PROMPT_VERSION,
       system: AI_SYSTEM_PROMPT,
-      user: buildUserPrompt(context),
+      user: buildUserPrompt(grounded),
       responseSchema: aiReviewJsonSchema,
       schemaName: AI_REVIEW_SCHEMA_NAME,
       temperature: this.options.temperature,
@@ -95,7 +113,20 @@ export class AIDesignEvaluator implements DesignEvaluator {
       );
     }
 
-    return this.ground(parsed.data, context);
+    return this.validate(parsed.data, grounded);
+  }
+
+  /** Adds retrieved guidance to the context, when a knowledge layer is configured. */
+  private async ground(
+    context: EvaluationContext,
+  ): Promise<EvaluationContext> {
+    if (this.knowledge === undefined) {
+      return context;
+    }
+    const knowledge = await this.knowledge.buildMany(
+      buildKnowledgeRequests(context),
+    );
+    return { ...context, knowledge };
   }
 
   /**
@@ -106,7 +137,7 @@ export class AIDesignEvaluator implements DesignEvaluator {
    * product promises the learner that every improvement says where, and an
    * unverifiable "where" is worse than silence.
    */
-  private ground(
+  private validate(
     review: AIReview,
     context: EvaluationContext,
   ): EvaluationOutcome {
@@ -181,11 +212,15 @@ export class AIDesignEvaluator implements DesignEvaluator {
         ? review.summary
         : `${review.summary} (${discarded} evidence ${discarded === 1 ? "reference" : "references"} in this review could not be found in the submission and were discarded.)`;
 
+    const citations = context.knowledge?.citations ?? [];
+
     return {
       criterionResults,
       strengths: review.strengths,
       priorityImprovements,
       summary,
+      // Provenance of what the judge was shown, never of what the learner did.
+      ...(citations.length === 0 ? {} : { knowledgeCitations: citations }),
     };
   }
 }

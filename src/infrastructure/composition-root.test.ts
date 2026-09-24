@@ -44,7 +44,7 @@ describe("createDefaultEvaluator", () => {
     expect(evaluator.metadata).toEqual({
       provider: "groq",
       model: "some-model-id",
-      promptVersion: "ai-review-v1",
+      promptVersion: "ai-review-v2",
     });
   });
 

@@ -1,3 +1,4 @@
+import type { KnowledgeContext } from "./knowledge-context";
 import type { EvaluationOutcome } from "@/domain/evaluation/evaluation-outcome";
 import type { Problem } from "@/domain/problem/problem";
 import type { Submission } from "@/domain/submission/submission";
@@ -23,6 +24,12 @@ export interface EvaluationContext {
    * evaluator running on its own has nothing to pass.
    */
   readonly deterministicOutcome?: EvaluationOutcome;
+  /**
+   * Reference knowledge retrieved for this review. Absent when no knowledge layer is
+   * configured; present and empty when retrieval found nothing, which the prompt
+   * states rather than hiding.
+   */
+  readonly knowledge?: KnowledgeContext;
 }
 
 /**

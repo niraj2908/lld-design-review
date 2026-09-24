@@ -9,6 +9,7 @@ export * from "./evaluation-dispatcher";
 export * from "./evaluation-repository";
 export * from "./evaluator";
 export * from "./id-generator";
+export * from "./knowledge-context";
 export * from "./knowledge-repository";
 export * from "./knowledge-retriever";
 export * from "./llm-provider";

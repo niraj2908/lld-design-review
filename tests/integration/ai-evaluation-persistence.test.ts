@@ -111,7 +111,7 @@ describe("hybrid evaluation against PostgreSQL", () => {
 
     expect(row.provider).toBe("fake");
     expect(row.model).toBe("some-model-id");
-    expect(row.promptVersion).toBe("ai-review-v1");
+    expect(row.promptVersion).toBe("ai-review-v2");
     expect(row.evaluatorVersion).toBe("hybrid-v1");
     expect(JSON.stringify(row)).not.toMatch(/api[_-]?key/i);
   });

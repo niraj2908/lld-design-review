@@ -11,6 +11,7 @@ import type { EvaluationVersions } from "@/domain/evaluation/evaluation-versions
 import { PersistenceMappingError } from "../persistence-errors";
 import type {
   EvaluationEvidenceRow,
+  EvaluationKnowledgeCitationRow,
   EvaluationRow,
 } from "./rows";
 
@@ -22,6 +23,7 @@ export interface EvaluationWriteData {
   readonly knowledgeVersion: string;
   readonly provider: string | null;
   readonly model: string | null;
+  readonly embeddingModel: string | null;
   readonly idempotencyKey: string;
   readonly attemptCount: number;
   readonly summary: string | null;
@@ -46,6 +48,7 @@ export interface EvaluationChildrenData {
     readonly position: number;
     readonly evidence: { readonly create: EvidenceCreate[] };
   }[];
+  readonly knowledgeCitations: EvaluationKnowledgeCitationRow[];
   readonly feedbackItems: {
     readonly id: string;
     readonly priority: FeedbackItem["priority"];
@@ -80,6 +83,7 @@ export function toEvaluationWriteData(
     knowledgeVersion: snapshot.versions.knowledgeVersion,
     provider: snapshot.versions.provider ?? null,
     model: snapshot.versions.model ?? null,
+    embeddingModel: snapshot.versions.embeddingModel ?? null,
     idempotencyKey: snapshot.idempotencyKey,
     attemptCount: snapshot.attemptCount,
     summary: outcome?.summary ?? null,
@@ -99,10 +103,13 @@ export function toEvaluationChildrenData(
 ): EvaluationChildrenData {
   const outcome = evaluation.outcome;
   if (outcome === null) {
-    return { criterionResults: [], feedbackItems: [] };
+    return { criterionResults: [], feedbackItems: [], knowledgeCitations: [] };
   }
 
   return {
+    knowledgeCitations: (outcome.knowledgeCitations ?? []).map((citation) => ({
+      ...citation,
+    })),
     criterionResults: outcome.criterionResults.map((result, position) => ({
       criterion: result.criterion,
       assessment: result.assessment,
@@ -181,7 +188,15 @@ function toOutcome(row: EvaluationRow): EvaluationOutcome | null {
     summary: row.summary,
   };
 
-  return row.confidence === null ? base : { ...base, confidence: row.confidence };
+  const withConfidence =
+    row.confidence === null ? base : { ...base, confidence: row.confidence };
+  const citations = row.knowledgeCitations
+    .toSorted((left, right) => left.rank - right.rank)
+    .map((citation) => ({ ...citation }));
+
+  return citations.length === 0
+    ? withConfidence
+    : { ...withConfidence, knowledgeCitations: citations };
 }
 
 function toVersions(row: EvaluationRow): EvaluationVersions {
@@ -193,7 +208,11 @@ function toVersions(row: EvaluationRow): EvaluationVersions {
   };
   const withProvider =
     row.provider === null ? base : { ...base, provider: row.provider };
-  return row.model === null ? withProvider : { ...withProvider, model: row.model };
+  const withModel =
+    row.model === null ? withProvider : { ...withProvider, model: row.model };
+  return row.embeddingModel === null
+    ? withModel
+    : { ...withModel, embeddingModel: row.embeddingModel };
 }
 
 function toCriterionResult(

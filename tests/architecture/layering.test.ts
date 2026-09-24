@@ -229,6 +229,36 @@ describe("dependency direction", () => {
     }
   });
 
+  it("keeps the AI evaluator on the knowledge port rather than the builder", async () => {
+    const specifiers = importsOf(
+      join(ROOT, "src/evaluation-engine/ai/ai-design-evaluator.ts"),
+    );
+
+    expect(specifiers).toContain("@/application/ports/knowledge-context");
+    expect(
+      specifiers.some((entry) => entry.includes("knowledge-context-builder")),
+    ).toBe(false);
+    expect(specifiers.some((entry) => entry.includes("infrastructure"))).toBe(
+      false,
+    );
+  });
+
+  it("keeps retrieval out of the deterministic evaluator", async () => {
+    const files = [
+      "src/evaluation-engine/rule-based-evaluator.ts",
+      ...(await sourceFiles(join(ROOT, "src/evaluation-engine/rules"))),
+    ];
+
+    for (const file of files) {
+      const specifiers = importsOf(
+        file.startsWith("/") ? file : join(ROOT, file),
+      );
+      expect(
+        specifiers.some((entry) => /knowledge|embedding/i.test(entry)),
+      ).toBe(false);
+    }
+  });
+
   it("keeps the Groq SDK inside the infrastructure layer", async () => {
     const importers: string[] = [];
     for (const directory of [

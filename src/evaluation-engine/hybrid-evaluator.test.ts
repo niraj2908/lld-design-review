@@ -58,7 +58,7 @@ describe("HybridEvaluator", () => {
     expect(evaluator.version).toBe(HYBRID_EVALUATOR_VERSION);
     expect(evaluator.metadata.provider).toBe("fake");
     expect(evaluator.metadata.model).toBe("fake-model-v1");
-    expect(evaluator.metadata.promptVersion).toBe("ai-review-v1");
+    expect(evaluator.metadata.promptVersion).toBe("ai-review-v2");
   });
 
   it("returns both the deterministic and the semantic criteria", async () => {

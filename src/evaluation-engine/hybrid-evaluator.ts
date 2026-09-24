@@ -63,6 +63,10 @@ export class HybridEvaluator implements DesignEvaluator {
           (PRIORITY_ORDER.get(right.priority) ?? 0),
       ),
       summary: `${factual.summary} ${judgement.summary}`,
+      // Only the judge consults knowledge, so its provenance passes straight through.
+      ...(judgement.knowledgeCitations === undefined
+        ? {}
+        : { knowledgeCitations: judgement.knowledgeCitations }),
     };
   }
 }

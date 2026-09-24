@@ -7,6 +7,7 @@ import { StartAttempt } from "@/application/use-cases/start-attempt";
 import { SubmitAttempt } from "@/application/use-cases/submit-attempt";
 import type { Clock } from "@/application/ports/clock";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
+import type { KnowledgeContextProvider } from "@/application/ports/knowledge-context";
 import { EmbeddingConfigurationError } from "@/application/ports/embedding-provider";
 import type { EmbeddingProvider } from "@/application/ports/embedding-provider";
 import type { KnowledgeRepository } from "@/application/ports/knowledge-repository";
@@ -126,6 +127,7 @@ export function createUseCases(
  */
 export function createDefaultEvaluator(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  knowledge?: KnowledgeContextProvider,
 ): DesignEvaluator {
   const deterministic = new RuleBasedEvaluator();
   if (!isGroqConfigured(env)) {
@@ -133,7 +135,12 @@ export function createDefaultEvaluator(
   }
 
   const provider = new GroqLLMProvider(readGroqConfig(env));
-  return new HybridEvaluator(deterministic, new AIDesignEvaluator(provider));
+  const judge =
+    knowledge === undefined
+      ? new AIDesignEvaluator(provider)
+      : new AIDesignEvaluator(provider, { knowledge });
+
+  return new HybridEvaluator(deterministic, judge);
 }
 
 /**

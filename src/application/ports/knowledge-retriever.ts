@@ -13,5 +13,12 @@ export interface KnowledgeQuery {
  * search, or hybrid.
  */
 export interface KnowledgeRetriever {
+  /**
+   * Which model produced the vectors this retriever searches by, recorded on every
+   * evaluation that consults it. A lexically filled store and a semantic one are
+   * indistinguishable from a result alone; this is how they stay distinguishable in
+   * the record.
+   */
+  readonly embeddingModel: string;
   retrieve(query: KnowledgeQuery): Promise<readonly RetrievedKnowledge[]>;
 }

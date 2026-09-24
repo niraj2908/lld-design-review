@@ -61,6 +61,7 @@ export class PrismaEvaluationRepository implements EvaluationRepository {
           ...toEvaluationWriteData(evaluation),
           criterionResults: { create: children.criterionResults },
           feedbackItems: { create: children.feedbackItems },
+          knowledgeCitations: { create: children.knowledgeCitations },
         },
       }),
     );
@@ -82,12 +83,18 @@ export class PrismaEvaluationRepository implements EvaluationRepository {
         await tx.evaluationFeedbackItem.deleteMany({
           where: { evaluationId: evaluation.id },
         });
+        // Provenance is replaced with the rest of the outcome, so a retry cannot
+        // leave the citations of a previous run beside those of this one.
+        await tx.evaluationKnowledgeCitation.deleteMany({
+          where: { evaluationId: evaluation.id },
+        });
         await tx.evaluation.update({
           where: { id: evaluation.id },
           data: {
             ...toEvaluationWriteData(evaluation),
             criterionResults: { create: children.criterionResults },
             feedbackItems: { create: children.feedbackItems },
+            knowledgeCitations: { create: children.knowledgeCitations },
           },
         });
       }),
