@@ -9,12 +9,18 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "tests/**/*.test.ts",
+    ],
     // Integration tests need Postgres; they run via vitest.integration.config.mts.
     exclude: ["tests/integration/**"],
     coverage: {
       provider: "v8",
       include: [
+        "src/app/_components/**/*.ts",
+        "src/presentation/**/*.ts",
         "src/domain/**/*.ts",
         "src/application/**/*.ts",
         "src/infrastructure/**/*.ts",
@@ -22,6 +28,7 @@ export default defineConfig({
       ],
       exclude: [
         "src/**/*.test.ts",
+        "src/**/*.test.tsx",
         "src/testing/**",
         "src/infrastructure/persistence/prisma/client/**",
         "src/infrastructure/persistence/prisma/client",

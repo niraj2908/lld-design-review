@@ -1,3 +1,4 @@
+export * from "./api-harness";
 export * from "./fake-knowledge";
 export * from "./fake-llm-provider";
 export * from "./fixed-clock";

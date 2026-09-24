@@ -127,7 +127,7 @@ export function createUseCases(
  */
 export function createDefaultEvaluator(
   env: Readonly<Record<string, string | undefined>> = process.env,
-  knowledge?: KnowledgeContextProvider,
+  knowledge: KnowledgeContextProvider | undefined = undefined,
 ): DesignEvaluator {
   const deterministic = new RuleBasedEvaluator();
   if (!isGroqConfigured(env)) {
@@ -202,4 +202,25 @@ export function createKnowledgeServices(
     contextBuilder: new KnowledgeContextBuilder(retriever),
     ingest: new IngestKnowledge({ embeddings, knowledge: repository }),
   };
+}
+
+/**
+ * The knowledge layer when the environment can actually provide embeddings, and
+ * `undefined` when it cannot.
+ *
+ * Callers outside infrastructure must not have to know which environment variables
+ * decide that, nor that milestone 5 forbids lexical embeddings in production, so the
+ * question is asked here. It is asked rather than answered by catching a throw from
+ * `createEmbeddingProvider`: catching would also swallow a genuine misconfiguration
+ * of a key that *is* present, and an application-wide review would then quietly run
+ * ungrounded for the wrong reason.
+ */
+export function createKnowledgeServicesIfAvailable(
+  prisma: PrismaClient,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): KnowledgeServices | undefined {
+  if (!isEmbeddingConfigured(env) && !allowsLocalEmbeddings(env)) {
+    return undefined;
+  }
+  return createKnowledgeServices(prisma, { env });
 }

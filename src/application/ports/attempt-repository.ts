@@ -6,6 +6,8 @@ export interface AttemptRepository {
     learnerId: string,
     problemId: string,
   ): Promise<readonly Attempt[]>;
+  /** Every attempt a learner has made, newest first. Drives the history screen. */
+  findManyByLearner(learnerId: string): Promise<readonly Attempt[]>;
   countByLearnerAndProblem(
     learnerId: string,
     problemId: string,

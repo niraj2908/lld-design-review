@@ -6,7 +6,7 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 6 — RAG-integrated hybrid review
+## Status: milestone 7 — the learner workflow
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
@@ -50,7 +50,7 @@ Milestone 5 added the knowledge layer:
 - a `KnowledgeContextBuilder` that renders retrieved passages as cited reference
   material.
 
-Milestone 6 connects the two:
+Milestone 6 connected the two:
 
 ```text
 Deterministic checks  +  Semantic AI judgment  +  Grounded design knowledge
@@ -80,7 +80,105 @@ What that does and does not mean:
   model, knowledge version, embedding model, and one citation row per passage the
   judge was shown.
 
-Not yet built: the Design Coach, the async dispatcher, API routes and the UI.
+Milestone 7 makes it usable: a Next.js application and a JSON API over the same
+application use cases, so a learner can go from the problem library to a completed
+review in a browser.
+
+Not yet built: the Design Coach, attempt comparison, the async dispatcher and
+authentication.
+
+## Running it
+
+```bash
+cp .env.example .env         # once
+npm install                  # also runs `prisma generate`
+npm run db:up                # PostgreSQL with pgvector, in Docker
+npm run db:deploy            # apply the migrations
+npm run db:seed              # the learner and the four problems
+npm run knowledge:ingest     # the design-guidance knowledge base
+npm run dev                  # http://localhost:3000
+```
+
+`npm run build` then `npm run start` for a production build. No API key is needed:
+without one the review runs the structural checks alone, and the knowledge base is
+embedded locally.
+
+## The learner workflow
+
+```text
+/problems            browse the four problems
+/problems/[slug]     read the context, requirements and constraints
+                     → Start an attempt
+/attempts/[id]       build the design: classes, interfaces, relationships,
+                     decisions, edge cases, requirement mapping
+                     → Save draft (server-validated, advisory)
+                     → Submit design (frozen from here on)
+                     → Run the review
+/attempts/[id]/review  summary, what is working, priority improvements,
+                     structural checks, design review, what grounded it
+/attempts            every attempt, with its status and its review
+```
+
+Submitting freezes a design. A second attempt on the same problem sits alongside the
+first, which is what makes design evolution possible later.
+
+## The interface
+
+The product is meant to read as a technical review workspace, so the visual system
+is deliberately plain and the decisions are written down rather than improvised per
+screen.
+
+- **Typefaces.** IBM Plex Sans for the interface and IBM Plex Mono for anything the
+  learner wrote — class names, requirement codes, evidence quotations, provenance
+  versions. Setting learner content in mono keeps their words visually separate from
+  the product's words about their words. Both are loaded with `next/font`, so they
+  are self-hosted at build time: no runtime request to a font CDN and no layout
+  shift as they load. The build does need network access the first time it fetches
+  them.
+- **Colour.** One cool-neutral ramp, one accent, and three semantic hues
+  (`--ok`, `--attention`, `--danger`). Colour never carries a meaning on its own: a
+  status is always a word and a shape as well as a hue, which is what makes the
+  review readable for someone who cannot separate green from amber. No gradients.
+- **Surfaces.** Regions are separated by a hairline and a change of ground rather
+  than by a drop shadow and a large radius, and a panel only exists where the
+  grouping is real. The problems list is a table, not a grid of cards.
+- **Icons.** `lucide-react`, used semantically — requirements, classes,
+  relationships, decisions, edge cases, review, retry, save — never as decoration,
+  and never emoji.
+- **States.** Every screen has a designed empty state, the workspace reports saving,
+  saved, blocked and reviewing through a live region rather than by relabelling its
+  buttons, and a failed review says the submission is still saved and offers a retry.
+- **Responsive.** The two-pane screens collapse to one column under 960px and the
+  context rail moves above the work rather than below it, because on a phone the
+  requirement list is what you read before you start typing.
+
+All of it lives in `src/app/globals.css` as design tokens. Tailwind was named in the
+original stack note but is not installed; adding a styling toolchain in the milestone
+that builds the learner loop would have bought risk rather than speed.
+
+## API
+
+All JSON, all over the same application use cases the pages use. No endpoint touches
+a repository.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/problems` | the problem library |
+| GET | `/api/problems/:ref` | one problem, by id or slug |
+| POST | `/api/problems/:ref/attempts` | start an attempt |
+| GET | `/api/attempts` | the learner's attempts |
+| GET | `/api/attempts/:id` | attempt, problem and current design |
+| PUT | `/api/attempts/:id/draft` | save a draft, with advisory issues |
+| POST | `/api/attempts/:id/submissions` | submit |
+| POST | `/api/attempts/:id/evaluate` | run the review (idempotent) |
+| GET | `/api/attempts/:id/evaluation` | the stored review |
+| POST | `/api/attempts/:id/retry-evaluation` | retry a failed review |
+
+Errors are a single envelope — `{ error: { code, message, issues? } }` — mapped from
+the typed application and domain errors: 400 invalid request, 404 not found, 409
+invalid state or duplicate, 422 a design the domain refuses, 502 the review's
+dependency failed, 500 anything unexpected. No stack trace, no driver message, and
+no provider detail reaches a client.
 
 ## Prerequisites
 
@@ -108,6 +206,9 @@ never touches attempts, submissions or evaluations.
 ## Commands
 
 ```bash
+npm run dev              # the application on http://localhost:3000
+npm run build            # production build
+npm run start            # serve the production build
 npm run verify           # typecheck + lint + unit tests (no database needed)
 npm run typecheck
 npm run lint
@@ -140,6 +241,9 @@ running they fail with the commands above rather than being skipped silently.
 ## Layout
 
 ```text
+src/
+  app/                  Next.js pages, API routes, client components, design tokens
+  presentation/         request handling, DTOs, HTTP error mapping
 prisma/
   schema.prisma         persistence schema
   migrations/           checked-in SQL migrations

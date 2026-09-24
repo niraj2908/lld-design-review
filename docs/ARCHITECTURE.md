@@ -5,7 +5,7 @@ ports and adapters.
 
 ```text
               ┌─────────────────────────────┐
-              │ API routes / UI  (later)    │
+              │ Next.js pages + API routes  │
               └──────────────┬──────────────┘
                              │
               ┌──────────────▼──────────────┐
@@ -174,6 +174,89 @@ is the only place that imports the SDK, enforced by lint and by an architecture
 test that asserts the import appears in that path and no other. The API key is
 passed to the client and never stored on the provider, logged, or included in an
 error.
+
+## The presentation layer
+
+```text
+browser ──▶ /api/… route handler ──▶ presentation handler ──▶ application use case
+                (3 lines)              (parse, delegate, map)        (the rules)
+
+server component ──▶ read-model ──▶ the same application use cases
+```
+
+**Route handlers are delegations.** Each one reads its params and calls one
+presentation handler; an architecture test asserts every file under `src/app/api` is
+under 18 non-blank lines, imports nothing from `@/application` or `@/domain`, and
+goes through `getApiServices()`. The handlers themselves parse with Zod, call one use
+case, map to a DTO and return — no branch in them decides anything about a design, a
+lifecycle or an evaluation.
+
+**Server components read through the same use cases.** A page calls the read model,
+which calls a use case and maps with the same DTO functions the API uses; an HTTP hop
+back into our own process would add a round trip for nothing. What no page does is
+reach for a repository.
+
+**Infrastructure is built in exactly one file.** `src/presentation/api/services.ts`
+is the only place in the presentation layer that mentions `getPrismaClient`,
+`createRepositories`, `createKnowledgeServices` or `createDefaultEvaluator` — again
+asserted by a test, so a component cannot grow its own Prisma client.
+
+**Client validation is for typing, server validation decides.** The editor says a
+class still needs a name; the domain decides whether a design can be submitted, and
+the workspace shows what the server said rather than predicting it.
+
+**Learner text is data in the browser too.** Nothing uses `dangerouslySetInnerHTML`
+or `innerHTML` — a test enforces that across `src/app` — so a design that contains
+markup or an instruction renders as the text it is.
+
+**Styling is one hand-written stylesheet.** Tailwind was named in the original stack
+note but is not installed; adding a styling toolchain in the milestone that builds
+the learner loop would have bought risk rather than speed, so `src/app/globals.css`
+carries the design tokens and the component rules. A utility framework can be layered
+on top later without touching a component's behaviour.
+
+## The interface
+
+The product has to read as a technical review workspace rather than a dashboard, so
+the visual decisions are written down here instead of being made per screen.
+
+**Two typefaces, with a job each.** IBM Plex Sans is the interface; IBM Plex Mono is
+reserved for what the learner wrote — class names, requirement codes, evidence
+quotations — and for provenance strings. The split is not decoration: a review page
+is the product's prose about the learner's words, and the reader has to be able to
+tell which is which at a glance. Both are loaded through `next/font`, so they are
+self-hosted from the application's own origin with fallback metrics that avoid a
+layout shift; the trade is that the first build needs network access to fetch them.
+
+**One accent, three semantic hues, no gradients.** Colour is state, never decoration:
+`--ok`, `--attention` and `--danger` say what happened, and the single accent marks
+what is interactive. No status is ever carried by colour alone — every state pill
+pairs a hue with a word and a shape, so it still reads for someone who cannot
+separate green from amber. Both themes are defined as tokens on `:root`, with dark
+values under `prefers-color-scheme`.
+
+**Surfaces are bordered regions, not floating cards.** A hairline and a change of
+ground separate areas; radii stay small and differentiated (controls tighter than
+containers) and there are no drop shadows. A panel exists only where the grouping is
+real, which is why the problem catalogue is a table rather than a grid of cards.
+
+**Icons are semantic.** `lucide-react` — one library, consistent stroke and optical
+size, each icon tied to a meaning the product already has (requirements, classes,
+relationships, decisions, edge cases, review, retry, save). No emoji, no decorative
+icons, and no icon that is the only carrier of a meaning.
+
+**Layouts are two-pane where the work needs context.** The problem page keeps the
+start action and previous attempts in a sticky rail; the workspace keeps live
+requirement coverage there; the review page keeps section navigation and provenance
+there. Under 960px the rail becomes an ordinary block *above* the work, because on a
+phone the requirements are what you read before you start typing — a stacked desktop
+layout would put them after it.
+
+**States are designed, not defaulted.** Empty, loading, saving, saved, blocked,
+reviewing, failed and read-only each have their own copy and their own visual
+treatment. The workspace reports progress through an `aria-live` region rather than
+by relabelling its buttons, so a screen reader hears the change without the control
+losing its accessible name.
 
 ## Hybrid review, grounded
 

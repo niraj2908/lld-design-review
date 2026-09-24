@@ -1,3 +1,6 @@
+export * from "./get-problem";
+export * from "./list-attempts";
+export * from "./list-problems";
 export * from "./evaluate-attempt";
 export * from "./get-attempt";
 export * from "./get-attempt-history";

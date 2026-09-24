@@ -36,6 +36,17 @@ export class PrismaAttemptRepository implements AttemptRepository {
     return rows.map(toAttempt);
   }
 
+  async findManyByLearner(learnerId: string): Promise<readonly Attempt[]> {
+    const rows = await withTranslatedErrors("attempt.findManyByLearner", () =>
+      this.prisma.attempt.findMany({
+        where: { learnerId },
+        include: ATTEMPT_INCLUDE,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+    );
+    return rows.map(toAttempt);
+  }
+
   async countByLearnerAndProblem(
     learnerId: string,
     problemId: string,

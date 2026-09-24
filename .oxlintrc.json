@@ -126,6 +126,15 @@
         "no-restricted-imports": "off",
         "no-console": "off"
       }
+    },
+    {
+      "files": [
+        "src/app/**/*.tsx",
+        "src/app/**/*.ts"
+      ],
+      "rules": {
+        "import/no-unassigned-import": "off"
+      }
     }
   ]
 }

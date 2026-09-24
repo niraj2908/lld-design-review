@@ -55,6 +55,17 @@ export class InMemoryAttemptRepository implements AttemptRepository {
       .map((row) => Attempt.restore(row));
   }
 
+  async findManyByLearner(learnerId: string): Promise<readonly Attempt[]> {
+    return [...this.rows.values()]
+      .filter((row) => row.learnerId === learnerId)
+      .toSorted(
+        (left, right) =>
+          right.createdAt.getTime() - left.createdAt.getTime() ||
+          right.id.localeCompare(left.id),
+      )
+      .map((row) => Attempt.restore(row));
+  }
+
   async countByLearnerAndProblem(
     learnerId: string,
     problemId: string,

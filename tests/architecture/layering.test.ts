@@ -75,7 +75,11 @@ async function sourceFiles(directory: string): Promise<string[]> {
     }
     if (entry.isDirectory()) {
       files.push(...(await sourceFiles(full)));
-    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+    } else if (
+      (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) &&
+      !entry.name.endsWith(".test.ts") &&
+      !entry.name.endsWith(".test.tsx")
+    ) {
       files.push(full);
     }
   }
@@ -330,6 +334,72 @@ describe("dependency direction", () => {
     expect(specifiers.some((entry) => entry.startsWith("@/application/"))).toBe(
       true,
     );
+  });
+
+  it("keeps the presentation layer off Prisma and the providers", async () => {
+    const leaks: string[] = [];
+    for (const directory of ["src/presentation", "src/app"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        for (const specifier of importsOf(file)) {
+          if (
+            specifier.startsWith("@prisma/") ||
+            specifier === "prisma" ||
+            specifier === "pg" ||
+            specifier.startsWith("groq-sdk") ||
+            /prisma\/client/.test(specifier) ||
+            /@\/infrastructure\/persistence\/repositories/.test(specifier) ||
+            /@\/infrastructure\/ai\//.test(specifier)
+          ) {
+            leaks.push(`${relative(ROOT, file)} imports "${specifier}"`);
+          }
+        }
+      }
+    }
+
+    expect(leaks).toEqual([]);
+  });
+
+  it("builds infrastructure in one place in the presentation layer", async () => {
+    const builders: string[] = [];
+    for (const directory of ["src/presentation", "src/app"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        const source = readFileSync(file, "utf8");
+        if (/getPrismaClient|createPrismaClient|createRepositories|createKnowledgeServices|createDefaultEvaluator/.test(source)) {
+          builders.push(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect(builders).toEqual(["src/presentation/api/services.ts"]);
+  });
+
+  it("keeps route handlers thin, delegating to one presentation handler each", async () => {
+    const routes = (await sourceFiles(join(ROOT, "src/app/api"))).filter((file) =>
+      file.endsWith("route.ts"),
+    );
+
+    expect(routes.length).toBeGreaterThan(8);
+    for (const route of routes) {
+      const source = readFileSync(route, "utf8");
+      // A handler that decided anything would need more than a delegation and the
+      // services accessor.
+      expect(source.split("\n").filter((line) => line.trim().length > 0).length).toBeLessThan(
+        18,
+      );
+      expect(/@\/application\/|@\/domain\//.test(source)).toBe(false);
+      expect(source).toContain("getApiServices()");
+    }
+  });
+
+  it("uses no dangerous HTML rendering anywhere in the UI", async () => {
+    const offenders: string[] = [];
+    for (const file of await sourceFiles(join(ROOT, "src/app"))) {
+      if (/dangerouslySetInnerHTML|innerHTML/.test(readFileSync(file, "utf8"))) {
+        offenders.push(relative(ROOT, file));
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it("keeps the application layer off the composition root", async () => {
