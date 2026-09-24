@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["import", "typescript", "unicorn"],
+  "plugins": [
+    "import",
+    "typescript",
+    "unicorn"
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -12,10 +16,17 @@
     "eqeqeq": "error",
     "import/no-cycle": "error"
   },
-  "ignorePatterns": ["node_modules", ".next", "coverage"],
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "coverage",
+    "src/infrastructure/persistence/prisma/client"
+  ],
   "overrides": [
     {
-      "files": ["src/domain/**/*.ts"],
+      "files": [
+        "src/domain/**/*.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -48,7 +59,9 @@
       }
     },
     {
-      "files": ["src/application/**/*.ts"],
+      "files": [
+        "src/application/**/*.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -74,7 +87,11 @@
       }
     },
     {
-      "files": ["**/*.test.ts", "src/testing/**/*.ts", "tests/**/*.ts"],
+      "files": [
+        "**/*.test.ts",
+        "src/testing/**/*.ts",
+        "tests/**/*.ts"
+      ],
       "rules": {
         "no-restricted-imports": "off",
         "no-console": "off"

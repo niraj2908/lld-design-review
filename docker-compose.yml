@@ -1,0 +1,32 @@
+# Local PostgreSQL for DesignReview development and integration tests.
+#
+# The image is pgvector's Postgres build so the `vector` extension the retrieval
+# milestone needs is already available; nothing in this milestone uses it.
+# Nothing else belongs in this file: the application runs on the host with
+# `npm run dev`, and no queue, cache or proxy is part of the architecture.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: designreview-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-designreview}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-designreview}
+      POSTGRES_DB: ${POSTGRES_DB:-designreview}
+      POSTGRES_TEST_DB: ${POSTGRES_TEST_DB:-designreview_test}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - designreview-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-designreview} -d ${POSTGRES_DB:-designreview}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  designreview-postgres-data:

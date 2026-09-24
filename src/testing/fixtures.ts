@@ -158,3 +158,25 @@ export function validParkingLotDesign(): StructuredDesign {
     ],
   };
 }
+
+/**
+ * The same valid design, re-pointed at whichever requirement ids a stored problem
+ * actually has. Integration tests read problems from the database, where ids come
+ * from the seed rather than from this file.
+ */
+export function designForProblem(problem: Problem): StructuredDesign {
+  const design = validParkingLotDesign();
+  const requirementIds = problem.requirementIds;
+
+  return {
+    ...design,
+    requirementMappings: design.requirementMappings.flatMap(
+      (mapping, index) => {
+        const requirementId = requirementIds[index];
+        return requirementId === undefined
+          ? []
+          : [{ ...mapping, requirementId }];
+      },
+    ),
+  };
+}

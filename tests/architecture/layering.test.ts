@@ -23,6 +23,9 @@ const FORBIDDEN_IN_DOMAIN = [
   /^@\/testing\//,
 ];
 
+/** Prisma's generated client is infrastructure, wherever it is emitted. */
+const GENERATED_CLIENT = /infrastructure\/persistence\/prisma\/client/;
+
 const FORBIDDEN_IN_APPLICATION = [
   /^next(\/|$)/,
   /^react(-dom)?(\/|$)/,
@@ -46,6 +49,9 @@ async function sourceFiles(directory: string): Promise<string[]> {
   const files: string[] = [];
   for (const entry of entries) {
     const full = join(directory, entry.name);
+    if (GENERATED_CLIENT.test(full)) {
+      continue;
+    }
     if (entry.isDirectory()) {
       files.push(...(await sourceFiles(full)));
     } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
@@ -97,6 +103,49 @@ describe("dependency direction", () => {
     const files = await sourceFiles(join(ROOT, "src/domain"));
 
     expect(files.length).toBeGreaterThan(15);
+  });
+
+  it("keeps Prisma inside the infrastructure layer", async () => {
+    const prismaImporters: string[] = [];
+    for (const directory of ["src/domain", "src/application"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        for (const specifier of importsOf(file)) {
+          if (
+            /prisma/i.test(specifier) ||
+            specifier === "pg" ||
+            GENERATED_CLIENT.test(specifier)
+          ) {
+            prismaImporters.push(`${relative(ROOT, file)} imports "${specifier}"`);
+          }
+        }
+      }
+    }
+
+    expect(prismaImporters).toEqual([]);
+  });
+
+  it("lets infrastructure depend on the domain and the application ports", async () => {
+    const files = await sourceFiles(join(ROOT, "src/infrastructure"));
+    const specifiers = files.flatMap(importsOf);
+
+    expect(files.length).toBeGreaterThan(5);
+    expect(specifiers.some((entry) => entry.startsWith("@/domain/"))).toBe(true);
+    expect(specifiers.some((entry) => entry.startsWith("@/application/"))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the application layer off the composition root", async () => {
+    const importers: string[] = [];
+    for (const file of await sourceFiles(join(ROOT, "src/application"))) {
+      for (const specifier of importsOf(file)) {
+        if (specifier.includes("composition-root")) {
+          importers.push(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect(importers).toEqual([]);
   });
 
   it("detects a forbidden import when one is present", () => {
