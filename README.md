@@ -6,7 +6,7 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 4 — LLM evaluation
+## Status: milestone 5 — RAG knowledge layer
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
@@ -27,7 +27,7 @@ Milestone 3 added the first evaluator:
 - the `EvaluateAttempt` use case, running synchronously and idempotently,
 - five deterministic criteria kept separate from the rubric's semantic ones.
 
-Milestone 4 adds a semantic evaluator beside it:
+Milestone 4 added a semantic evaluator beside it:
 
 - `LLMProvider` port with a `GroqLLMProvider` adapter — the only file that knows
   Groq exists,
@@ -39,8 +39,23 @@ Milestone 4 adds a semantic evaluator beside it:
 
 The whole test suite runs without a Groq key: only the provider is faked.
 
-Not yet built: retrieval, the async dispatcher, API routes and the UI. pgvector is
-enabled but no vector column, index or retrieval code exists.
+Milestone 5 adds the knowledge layer the evaluator and the future Design Coach
+will consult:
+
+- a curated knowledge base of design guidance — 31 documents, 46 chunks — stored
+  in PostgreSQL with pgvector,
+- `EmbeddingProvider` and `KnowledgeRepository` ports, with an OpenAI-compatible
+  embedding adapter and a local lexical one for offline work,
+- deterministic chunking and rerunnable ingestion,
+- semantic retrieval with topic, problem and source filters,
+- a `KnowledgeContextBuilder` that renders retrieved passages as cited reference
+  material.
+
+The knowledge base holds **guidance, never solutions**: it explains how to reason
+about a design, and contains no class list or worked answer for any problem. The
+existing evaluator is unchanged — the integration point is ready, not wired.
+
+Not yet built: the Design Coach, the async dispatcher, API routes and the UI.
 
 ## Prerequisites
 
@@ -138,6 +153,36 @@ Providers retire ids on their own schedule, so if a call starts failing with a
 curl -sH "Authorization: Bearer $GROQ_API_KEY" \
   https://api.groq.com/openai/v1/models | jq -r '.data[].id'
 ```
+
+## Knowledge base
+
+```bash
+npm run knowledge:ingest     # chunk, embed and store the curated catalogue
+```
+
+Rerunnable: chunk ids derive from the document slug and position, and each
+document's chunk set is replaced, so running it twice leaves the same rows.
+
+`EMBEDDING_API_KEY` selects how text is embedded:
+
+| | `NODE_ENV=production` | anything else |
+|---|---|---|
+| key set | semantic embeddings | semantic embeddings |
+| no key | **fails to start** | local lexical embeddings |
+
+Outside production a missing key gives a local lexical embedding — no key, no
+network, no cost — which is what the tests use, and it reports its own model name so
+a store filled that way is never mistaken for a semantic one. Set a key and re-run
+`knowledge:ingest` to replace the vectors.
+
+In production a missing key is an error, not a fallback. Lexical vectors retrieve by
+word overlap, so a deployment that lost its key would keep returning ranked, cited
+passages chosen on a different basis than the one it claims, with nothing in the
+result or the database to reveal it. To run a production build offline, point
+`EMBEDDING_BASE_URL` at a local embedding service instead.
+
+See `docs/ARCHITECTURE.md` for why PostgreSQL and pgvector rather than a separate
+vector database, and for the retrieval flow.
 
 ## Environment
 

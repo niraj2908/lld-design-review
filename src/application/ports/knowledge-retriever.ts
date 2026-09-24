@@ -1,22 +1,17 @@
-export interface KnowledgeQuery {
-  readonly text: string;
-  readonly topK: number;
-  readonly categories?: readonly string[];
-}
+import type { RetrievedKnowledge } from "@/domain/knowledge/knowledge-chunk";
+import type { KnowledgeFilter } from "./knowledge-repository";
 
-export interface KnowledgeChunk {
-  readonly id: string;
-  readonly documentId: string;
-  readonly content: string;
-  readonly score: number;
-  readonly knowledgeVersion: string;
-  readonly category?: string;
+export interface KnowledgeQuery {
+  /** What the caller wants to know about, in its own words. */
+  readonly text: string;
+  readonly limit: number;
+  readonly filter?: KnowledgeFilter;
 }
 
 /**
- * Contract only. The evaluation engine must not learn whether retrieval is
- * pgvector, keyword search, or hybrid.
+ * Contract only. A caller must not learn whether retrieval is pgvector, keyword
+ * search, or hybrid.
  */
 export interface KnowledgeRetriever {
-  retrieve(query: KnowledgeQuery): Promise<readonly KnowledgeChunk[]>;
+  retrieve(query: KnowledgeQuery): Promise<readonly RetrievedKnowledge[]>;
 }

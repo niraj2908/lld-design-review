@@ -155,6 +155,80 @@ describe("dependency direction", () => {
     expect(files.length).toBeGreaterThan(5);
   });
 
+  it("keeps vector and embedding implementations inside the infrastructure layer", async () => {
+    const importers: string[] = [];
+    for (const directory of [
+      "src/domain",
+      "src/application",
+      "src/evaluation-engine",
+    ]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        for (const specifier of importsOf(file)) {
+          if (
+            /pgvector|pg-vector|^pg$/i.test(specifier) ||
+            /pinecone|weaviate|qdrant|milvus|chromadb/i.test(specifier) ||
+            /^@xenova|transformers|sentence-transformers/i.test(specifier) ||
+            specifier.startsWith("openai") ||
+            specifier.startsWith("@google") ||
+            specifier.startsWith("cohere")
+          ) {
+            importers.push(`${relative(ROOT, file)} imports "${specifier}"`);
+          }
+        }
+      }
+    }
+
+    expect(importers).toEqual([]);
+  });
+
+  it("keeps raw SQL out of the domain and application layers", async () => {
+    const offenders: string[] = [];
+    for (const directory of ["src/domain", "src/application"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        const source = readFileSync(file, "utf8");
+        if (
+          /\$queryRaw|\$executeRaw|\bSELECT\s+[\s\S]{0,80}\bFROM\b/iu.test(source)
+        ) {
+          offenders.push(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the vector column's SQL in one adapter", async () => {
+    const files = new Set<string>();
+    for (const file of await sourceFiles(join(ROOT, "src"))) {
+      const source = readFileSync(file, "utf8");
+      if (/::vector|vector_cosine_ops|<=>/u.test(source)) {
+        files.add(relative(ROOT, file));
+      }
+    }
+
+    expect([...files]).toEqual([
+      "src/infrastructure/knowledge/prisma-knowledge-repository.ts",
+    ]);
+  });
+
+  it("keeps the knowledge retriever and context builder on ports alone", async () => {
+    for (const file of [
+      "src/application/knowledge/semantic-knowledge-retriever.ts",
+      "src/application/knowledge/knowledge-context-builder.ts",
+      "src/application/knowledge/ingest-knowledge.ts",
+    ]) {
+      const specifiers = importsOf(join(ROOT, file));
+      const outside = specifiers.filter(
+        (entry) =>
+          entry.startsWith("@/") &&
+          !entry.startsWith("@/domain/") &&
+          !entry.startsWith("@/application/"),
+      );
+
+      expect(outside).toEqual([]);
+    }
+  });
+
   it("keeps the Groq SDK inside the infrastructure layer", async () => {
     const importers: string[] = [];
     for (const directory of [

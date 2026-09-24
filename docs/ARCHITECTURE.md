@@ -175,6 +175,73 @@ test that asserts the import appears in that path and no other. The API key is
 passed to the client and never stored on the provider, logged, or included in an
 error.
 
+## The knowledge layer
+
+```text
+knowledge catalogue (curated guidance)
+        │
+        ▼  chunkDocument — deterministic, paragraph-packed
+   KnowledgeChunk[]
+        │
+        ▼  EmbeddingProvider (port)  ──  OpenAI-compatible adapter | local lexical
+   EmbeddedKnowledgeChunk[]
+        │
+        ▼  KnowledgeRepository (port)  ──  PrismaKnowledgeRepository (pgvector)
+   PostgreSQL
+
+query ──▶ SemanticKnowledgeRetriever ──▶ KnowledgeContextBuilder ──▶ cited context
+             (embed, then search)            (bound, fence, cite)
+```
+
+**Why PostgreSQL with pgvector, and not a vector database.** The knowledge base is
+small — tens of documents, dozens of chunks — and it already shares a transaction
+boundary with the data it supports. A separate store would add a service to run, a
+second consistency problem, and a second place for an ingestion to half-succeed, in
+exchange for scale this product does not have. pgvector gives cosine search and an
+HNSW index inside the database that is already there. `KnowledgeRepository` is the
+seam that makes this reversible: if the knowledge base ever outgrows Postgres, one
+adapter changes.
+
+**The local embedding fallback is not a production mode.** Outside production a
+missing `EMBEDDING_API_KEY` yields local lexical embeddings so everything runs
+offline; in production `createEmbeddingProvider` throws instead. The two produce
+vectors of the same width and go through the same pgvector query, so a silent
+substitution would be undetectable downstream — the result would still be ranked and
+cited, just chosen by word overlap. Refusing to start is the only signal that
+reaches an operator.
+
+**Retrieval is two ports, not a service.** `SemanticKnowledgeRetriever` embeds the
+question and asks the repository for neighbours; it contains no SQL and no vendor,
+so it lives in the application layer. Metadata filters — topic, problem, source —
+are applied before similarity, so a query is only ranked among passages that can
+apply at all. Every result carries its chunk id, document, source and version, so a
+claim can be traced back.
+
+**Dimensions are checked, not assumed.** The vector column is `vector(1536)`, fixed
+by migration, and `KNOWLEDGE_EMBEDDING_DIMENSIONS` is the single place that says so.
+A provider whose width disagrees is rejected when the retriever or the ingester is
+constructed, not when a query returns nonsense.
+
+**Ingestion is rerunnable by construction.** Document and chunk ids derive from the
+document slug and the chunk's position, and each document is written by replacing
+its whole chunk set — so a second run produces the same rows, and a document whose
+text shrank loses the chunks that no longer exist.
+
+**Retrieved text is reference material, not instruction.** The context builder
+labels the block as background, states that nothing in it changes the evaluator's
+rules or is a solution, fences it, and neutralises fence-like runs inside a passage.
+Curated content is still content being pasted into a prompt, and treating it as
+trusted because of where it came from is how the next injection works.
+
+**Guidance, never solutions.** No table holds a reference design, and none should be
+added. Every catalogue entry explains how to reason about a decision — what a
+concept means, what evidence suggests it applies, what it costs. The problem-specific
+entries name each problem's variation points and difficulties and stop short of
+naming elements; one of them says so in as many words, and a test asserts no entry
+contains an answer-key phrase or a class declaration. A stored answer would quietly
+turn retrieval into comparison and contradict the product's premise that several
+designs can be right.
+
 ## Persistence design notes
 
 **Normalized design elements.** Classes, interfaces, relationships, decisions,

@@ -94,6 +94,15 @@ enum FeedbackPriority {
   P3
 }
 
+enum KnowledgeTopic {
+  OOP
+  SOLID
+  PATTERN
+  DESIGN_SMELL
+  LLD_REASONING
+  PROBLEM_GUIDANCE
+}
+
 /// Persistence-only. There is no Learner domain entity and no authentication:
 /// the MVP runs with one seeded learner. The table exists so attempt ownership
 /// is a real foreign key rather than an unchecked string.
@@ -455,4 +464,61 @@ model EvaluationFeedbackEvidence {
 
   @@index([feedbackItemId])
   @@map("evaluation_feedback_evidence")
+}
+
+/// Curated design guidance the evaluator may consult.
+///
+/// It explains how to reason about a design. Nothing here is a solution: there is
+/// no column for a reference design, and none should be added — a stored answer key
+/// would turn retrieval into comparison and contradict the product's premise that
+/// several designs can be right.
+model KnowledgeDocument {
+  id      String         @id
+  /// Human-stable identity. Document and chunk ids derive from it, which is what
+  /// makes ingestion rerunnable.
+  slug    String         @unique
+  title   String
+  /// Where the material came from, kept so a citation can be audited.
+  source  String
+  topic   KnowledgeTopic
+  version String
+  content String
+  /// Set only on guidance written for one problem, so retrieval can be filtered
+  /// to it. Not a foreign key: guidance is versioned independently of the problem
+  /// catalogue and must survive a problem being reworked.
+  problemSlug String?
+  concepts    String[]
+  createdAt   DateTime
+
+  chunks KnowledgeChunk[]
+
+  @@index([topic])
+  @@index([problemSlug])
+  @@map("knowledge_documents")
+}
+
+/// One retrievable passage.
+///
+/// `embedding` is `Unsupported` because Prisma has no vector type: the column is
+/// created by the migration and read and written through narrowly scoped raw SQL in
+/// `PrismaKnowledgeRepository`. Its dimension is fixed at migration time, so
+/// changing embedding model dimensions needs a migration rather than a config edit.
+model KnowledgeChunk {
+  id          String                       @id
+  documentId  String
+  chunkIndex  Int
+  content     String
+  topic       KnowledgeTopic
+  problemSlug String?
+  concepts    String[]
+  embedding   Unsupported("vector(1536)")?
+  createdAt   DateTime
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@index([topic])
+  @@index([problemSlug])
+  @@map("knowledge_chunks")
 }
