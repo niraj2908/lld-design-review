@@ -2,7 +2,7 @@
   "name": "lld-design-review",
   "version": "0.1.0",
   "private": true,
-  "description": "DesignReview \u2014 LLD Design Practice & Review Platform",
+  "description": "DesignReview — LLD Design Practice & Review Platform",
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev",
@@ -29,6 +29,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "groq-sdk": "^1.6.0",
     "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",

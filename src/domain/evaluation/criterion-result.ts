@@ -30,4 +30,10 @@ export interface CriterionResult {
   readonly suggestion?: string;
   /** Advisory only. It communicates uncertainty; it is not a score. */
   readonly confidence?: number;
+  /**
+   * How many evidence items were discarded because they could not be found in
+   * the submitted design. Present only where evidence was checked, and kept so a
+   * reader can see that a judgement rests on less grounding than it claimed.
+   */
+  readonly unverifiedEvidenceCount?: number;
 }

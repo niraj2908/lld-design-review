@@ -22,7 +22,9 @@ ports and adapters.
               ┌──────────────┴──────────────┐
               │ Evaluation engine           │
               │  RuleBasedEvaluator         │
-              │  (implements DesignEvaluator)│
+              │  AIDesignEvaluator          │
+              │  HybridEvaluator            │
+              │  (implement DesignEvaluator)│
               └─────────────────────────────┘
                              ▲
                              │  implements the ports
@@ -127,6 +129,51 @@ test:
 Coverage is decided only by explicit requirement mappings. A class whose name
 merely sounds relevant is not evidence, so a design with different names, fewer
 classes or no interfaces is never marked down for the shape it chose.
+
+## The semantic evaluator
+
+```text
+                 ┌── RuleBasedEvaluator ──── deterministic findings ──┐
+Submission ──────┤                                                   ├── merged outcome
+                 └── AIDesignEvaluator ──── LLMProvider (port) ───────┘
+                          │                        │
+                          │                  GroqLLMProvider
+                          └── evidence validation against the submission
+```
+
+`HybridEvaluator` runs the rule evaluator, hands its outcome to the judge through
+`EvaluationContext.deterministicOutcome`, and concatenates the two results.
+
+**The judge cannot overwrite a fact, and not by policing.** The two evaluators
+report on disjoint criterion sets — five deterministic, nine semantic — so no
+criterion exists that both can speak about. A test asserts the sets stay disjoint.
+`REQUIREMENT_UNDERSTANDING` is deliberately outside the judge's remit: coverage is
+settled from the mappings, and asking a model to re-decide it invites a
+contradiction.
+
+**Nothing the model says is trusted because it said it.** Three things happen to
+an answer before it becomes an outcome:
+
+1. it is parsed against a Zod schema, and a malformed answer fails the evaluation
+   rather than producing a partial one — confidence outside 0–1 is rejected, not
+   clamped;
+2. every evidence item is checked against the submitted design by
+   `validateEvidence` — an unknown entity, a field the submission format does not
+   have, or a quote that is not in the named element is discarded and counted in
+   `unverifiedEvidenceCount`;
+3. an improvement left without verified evidence is dropped, and a concern with
+   nothing to point at is not carried as one.
+
+**Learner text is data.** The system prompt is assembled from constants only, so
+nothing a learner writes can reach it. Their design is rendered inside a fenced
+section, and any fence-like run of dashes inside it is neutralised so a submission
+cannot close its own section and start issuing instructions.
+
+**Groq lives in exactly one file.** `src/infrastructure/ai/groq-llm-provider.ts`
+is the only place that imports the SDK, enforced by lint and by an architecture
+test that asserts the import appears in that path and no other. The API key is
+passed to the client and never stored on the provider, logged, or included in an
+error.
 
 ## Persistence design notes
 

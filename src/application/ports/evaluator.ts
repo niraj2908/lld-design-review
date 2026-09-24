@@ -15,6 +15,25 @@ import type { Submission } from "@/domain/submission/submission";
 export interface EvaluationContext {
   readonly problem: Problem;
   readonly submission: Submission;
+  /**
+   * What a deterministic evaluator already established, when one has run.
+   *
+   * A judge that can see the structural findings does not waste its attention
+   * re-deciding them, and can reason about what they imply. Optional, because an
+   * evaluator running on its own has nothing to pass.
+   */
+  readonly deterministicOutcome?: EvaluationOutcome;
+}
+
+/**
+ * Static facts about what produced an evaluation, recorded for reproducibility.
+ * Known when an evaluator is constructed, so it needs no plumbing through the
+ * call.
+ */
+export interface EvaluatorMetadata {
+  readonly provider?: string;
+  readonly model?: string;
+  readonly promptVersion?: string;
 }
 
 /**
@@ -29,5 +48,7 @@ export interface EvaluationContext {
 export interface DesignEvaluator {
   /** Recorded on every evaluation this evaluator produces, for reproducibility. */
   readonly version: string;
+  /** Absent for an evaluator that consults no model. */
+  readonly metadata?: EvaluatorMetadata;
   evaluate(context: EvaluationContext): Promise<EvaluationOutcome>;
 }

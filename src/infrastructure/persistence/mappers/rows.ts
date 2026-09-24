@@ -154,6 +154,7 @@ export interface EvaluationCriterionResultRow {
   readonly concern: string | null;
   readonly suggestion: string | null;
   readonly confidence: number | null;
+  readonly unverifiedEvidenceCount: number | null;
   readonly position: number;
   readonly evidence: readonly EvaluationEvidenceRow[];
 }
@@ -178,6 +179,8 @@ export interface EvaluationRow {
   readonly rubricVersion: string;
   readonly promptVersion: string;
   readonly knowledgeVersion: string;
+  readonly provider: string | null;
+  readonly model: string | null;
   readonly idempotencyKey: string;
   readonly attemptCount: number;
   readonly summary: string | null;

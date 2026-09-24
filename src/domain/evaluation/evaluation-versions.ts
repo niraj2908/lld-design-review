@@ -7,6 +7,9 @@ export interface EvaluationVersions {
   readonly rubricVersion: string;
   readonly promptVersion: string;
   readonly knowledgeVersion: string;
+  /** Absent for an evaluator that consults no model, such as the rule evaluator. */
+  readonly provider?: string;
+  readonly model?: string;
 }
 
 /**

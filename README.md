@@ -6,7 +6,7 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 3 — deterministic evaluation engine
+## Status: milestone 4 — LLM evaluation
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
@@ -20,15 +20,27 @@ Milestone 2 added PostgreSQL behind those ports:
 - a deterministic, rerunnable seed with the four MVP problems,
 - integration tests that run the milestone-1 use cases against a real database.
 
-Milestone 3 adds the first evaluator:
+Milestone 3 added the first evaluator:
 
 - `src/evaluation-engine` — a `RuleBasedEvaluator` that reports only what can be
   checked from the submission, behind the `DesignEvaluator` port,
 - the `EvaluateAttempt` use case, running synchronously and idempotently,
 - five deterministic criteria kept separate from the rubric's semantic ones.
 
-Not yet built: the Groq provider, retrieval, the async dispatcher, API routes and
-the UI. pgvector is enabled but no vector column, index or retrieval code exists.
+Milestone 4 adds a semantic evaluator beside it:
+
+- `LLMProvider` port with a `GroqLLMProvider` adapter — the only file that knows
+  Groq exists,
+- `AIDesignEvaluator`, which judges the nine criteria rules cannot settle and
+  discards any evidence it cannot find in the submission,
+- `HybridEvaluator`, which runs both and cannot let the judge overwrite a fact,
+- versioned prompts, schema-validated output, and provider/model recorded on
+  every evaluation.
+
+The whole test suite runs without a Groq key: only the provider is faked.
+
+Not yet built: retrieval, the async dispatcher, API routes and the UI. pgvector is
+enabled but no vector column, index or retrieval code exists.
 
 ## Prerequisites
 
@@ -111,6 +123,21 @@ out of the domain and application layers.
 The dependency rule is enforced twice — by `no-restricted-imports` overrides in
 `.oxlintrc.json` and by `tests/architecture/layering.test.ts` — so it fails in
 both lint and CI rather than eroding quietly.
+
+## Language model (optional)
+
+With `GROQ_API_KEY` unset the application runs the deterministic evaluator alone,
+and every test passes. Set a key to enable AI review; nothing else is required.
+
+The model defaults to `llama-3.3-70b-versatile` (Llama 3.3 70B on Groq), declared
+once in `src/infrastructure/ai/groq-config.ts` and overridable with `GROQ_MODEL`.
+Providers retire ids on their own schedule, so if a call starts failing with a
+404, check what the key can use and set `GROQ_MODEL`:
+
+```bash
+curl -sH "Authorization: Bearer $GROQ_API_KEY" \
+  https://api.groq.com/openai/v1/models | jq -r '.data[].id'
+```
 
 ## Environment
 

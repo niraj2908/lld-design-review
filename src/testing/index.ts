@@ -1,3 +1,4 @@
+export * from "./fake-llm-provider";
 export * from "./fixed-clock";
 export * from "./fixtures";
 export * from "./harness";

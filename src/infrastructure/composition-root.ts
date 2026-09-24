@@ -8,7 +8,11 @@ import { SubmitAttempt } from "@/application/use-cases/submit-attempt";
 import type { Clock } from "@/application/ports/clock";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { IdGenerator } from "@/application/ports/id-generator";
+import { AIDesignEvaluator } from "@/evaluation-engine/ai/ai-design-evaluator";
+import { HybridEvaluator } from "@/evaluation-engine/hybrid-evaluator";
 import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
+import { GroqLLMProvider } from "./ai/groq-llm-provider";
+import { isGroqConfigured, readGroqConfig } from "./ai/groq-config";
 import { SystemClock } from "./clock/system-clock";
 import { UuidIdGenerator } from "./id/uuid-id-generator";
 import type { PrismaClient } from "./persistence/prisma/prisma-client";
@@ -58,9 +62,7 @@ export function createUseCases(
 ): UseCases {
   const clock = dependencies.clock ?? new SystemClock();
   const ids = dependencies.ids ?? new UuidIdGenerator();
-  // The deterministic evaluator is the default. A hybrid evaluator replaces it
-  // here and nowhere else.
-  const evaluator = dependencies.evaluator ?? new RuleBasedEvaluator();
+  const evaluator = dependencies.evaluator ?? createDefaultEvaluator();
   const { problems, attempts, submissions, evaluations } = repositories;
 
   return {
@@ -96,4 +98,25 @@ export function createUseCases(
       clock,
     }),
   };
+}
+
+/**
+ * The deterministic evaluator alone, or both evaluators composed when a model is
+ * configured.
+ *
+ * Falling back rather than failing is deliberate: structural review is the part
+ * that must always work, and a missing key is a reason to review less, not a
+ * reason to review nothing. This is the only place that decides which evaluators
+ * run, and the only place that touches provider configuration.
+ */
+export function createDefaultEvaluator(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): DesignEvaluator {
+  const deterministic = new RuleBasedEvaluator();
+  if (!isGroqConfigured(env)) {
+    return deterministic;
+  }
+
+  const provider = new GroqLLMProvider(readGroqConfig(env));
+  return new HybridEvaluator(deterministic, new AIDesignEvaluator(provider));
 }

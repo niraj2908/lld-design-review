@@ -4,6 +4,7 @@ import type { DesignEvaluator } from "../ports/evaluator";
 import type { EvaluationContext } from "../ports/evaluator";
 import type { EvaluationOutcome } from "@/domain/evaluation/evaluation-outcome";
 import { NOT_APPLICABLE_VERSION } from "@/domain/evaluation/evaluation-versions";
+import { LLMTimeoutError } from "@/application/ports/llm-provider";
 import { InvalidAttemptStateError } from "@/domain/shared/errors";
 import {
   LEARNER_ID,
@@ -319,6 +320,106 @@ describe("EvaluateAttempt", () => {
       expect(
         (await harness.evaluations.findLatestBySubmissionId(submission!.id))?.id,
       ).toBe(result.evaluationId);
+    });
+  });
+
+  describe("evaluator metadata", () => {
+    class ModelEvaluator implements DesignEvaluator {
+      readonly version = "hybrid-test-v1";
+      readonly metadata = {
+        provider: "fake",
+        model: "some-model-id",
+        promptVersion: "ai-review-v1",
+      };
+
+      async evaluate(): Promise<EvaluationOutcome> {
+        return {
+          criterionResults: [],
+          strengths: [],
+          priorityImprovements: [],
+          summary: "reviewed",
+        };
+      }
+    }
+
+    it("records the provider, model and prompt version an evaluator reports", async () => {
+      const harness = createHarness(parkingLotProblem(), new ModelEvaluator());
+      const attemptId = await submittedAttempt(harness);
+
+      const result = await harness.evaluateAttempt.execute({ attemptId });
+      const stored = await harness.evaluations.findById(result.evaluationId);
+
+      expect(stored?.versions.provider).toBe("fake");
+      expect(stored?.versions.model).toBe("some-model-id");
+      expect(stored?.versions.promptVersion).toBe("ai-review-v1");
+    });
+
+    it("records no provider or model for an evaluator that consults none", async () => {
+      const harness = createHarness();
+      const attemptId = await submittedAttempt(harness);
+
+      const result = await harness.evaluateAttempt.execute({ attemptId });
+      const stored = await harness.evaluations.findById(result.evaluationId);
+
+      expect(stored?.versions.provider).toBeUndefined();
+      expect(stored?.versions.model).toBeUndefined();
+      expect(stored?.versions.promptVersion).toBe(NOT_APPLICABLE_VERSION);
+    });
+
+    it("keys the evaluation on the evaluator version, so two evaluators do not collide", async () => {
+      const harness = createHarness(parkingLotProblem(), new ModelEvaluator());
+      const attemptId = await submittedAttempt(harness);
+
+      const result = await harness.evaluateAttempt.execute({ attemptId });
+
+      expect(result.idempotencyKey).toBe(`${attemptId}:v1:hybrid-test-v1`);
+    });
+  });
+
+  describe("when the model provider fails", () => {
+    class ProviderFailingEvaluator implements DesignEvaluator {
+      readonly version = "ai-failing-v1";
+      readonly metadata = { provider: "fake", model: "m", promptVersion: "p" };
+
+      async evaluate(): Promise<EvaluationOutcome> {
+        throw new LLMTimeoutError(1_000);
+      }
+    }
+
+    it("records the failure and keeps the submission, exactly as any other failure", async () => {
+      const harness = createHarness(
+        parkingLotProblem(),
+        new ProviderFailingEvaluator(),
+      );
+      const attemptId = await submittedAttempt(harness);
+
+      await expect(
+        harness.evaluateAttempt.execute({ attemptId }),
+      ).rejects.toThrow(EvaluationExecutionError);
+
+      const submission = await harness.submissions.findLatestByAttemptId(attemptId);
+      expect(submission).not.toBeNull();
+      const evaluation = await harness.evaluations.findLatestBySubmissionId(
+        submission!.id,
+      );
+      expect(evaluation?.status).toBe("FAILED");
+      expect(evaluation?.outcome).toBeNull();
+      expect(evaluation?.failure?.message).toContain("1000ms");
+      expect((await harness.attempts.findById(attemptId))?.status).toBe("FAILED");
+    });
+
+    it("leaves the run retryable through RetryEvaluation", async () => {
+      const harness = createHarness(
+        parkingLotProblem(),
+        new ProviderFailingEvaluator(),
+      );
+      const attemptId = await submittedAttempt(harness);
+      await harness.evaluateAttempt.execute({ attemptId }).catch(() => undefined);
+
+      const retry = await harness.retryEvaluation.execute({ attemptId });
+
+      expect(retry.evaluationStatus).toBe("EVALUATING");
+      expect(retry.idempotencyKey).toBe(`${attemptId}:v1:ai-failing-v1`);
     });
   });
 });

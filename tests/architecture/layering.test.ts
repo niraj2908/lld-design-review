@@ -155,6 +155,49 @@ describe("dependency direction", () => {
     expect(files.length).toBeGreaterThan(5);
   });
 
+  it("keeps the Groq SDK inside the infrastructure layer", async () => {
+    const importers: string[] = [];
+    for (const directory of [
+      "src/domain",
+      "src/application",
+      "src/evaluation-engine",
+    ]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        for (const specifier of importsOf(file)) {
+          if (/groq/i.test(specifier)) {
+            importers.push(`${relative(ROOT, file)} imports "${specifier}"`);
+          }
+        }
+      }
+    }
+
+    expect(importers).toEqual([]);
+  });
+
+  it("puts every Groq import in exactly one directory", async () => {
+    const files = new Set<string>();
+    for (const file of await sourceFiles(join(ROOT, "src"))) {
+      for (const specifier of importsOf(file)) {
+        if (specifier.startsWith("groq-sdk")) {
+          files.add(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect([...files]).toEqual([
+      "src/infrastructure/ai/groq-llm-provider.ts",
+    ]);
+  });
+
+  it("keeps the AI evaluator on the provider port rather than a vendor", async () => {
+    const specifiers = importsOf(
+      join(ROOT, "src/evaluation-engine/ai/ai-design-evaluator.ts"),
+    );
+
+    expect(specifiers).toContain("@/application/ports/llm-provider");
+    expect(specifiers.some((entry) => /groq|openai/i.test(entry))).toBe(false);
+  });
+
   it("keeps Prisma inside the infrastructure layer", async () => {
     const prismaImporters: string[] = [];
     for (const directory of ["src/domain", "src/application", "src/evaluation-engine"]) {

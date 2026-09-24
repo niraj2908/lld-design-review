@@ -7,6 +7,7 @@ import type {
 import type { Evidence } from "@/domain/feedback/evidence";
 import type { FeedbackItem } from "@/domain/feedback/feedback-item";
 import type { ReviewCriterion } from "@/domain/evaluation/review-criterion";
+import type { EvaluationVersions } from "@/domain/evaluation/evaluation-versions";
 import { PersistenceMappingError } from "../persistence-errors";
 import type {
   EvaluationEvidenceRow,
@@ -19,6 +20,8 @@ export interface EvaluationWriteData {
   readonly rubricVersion: string;
   readonly promptVersion: string;
   readonly knowledgeVersion: string;
+  readonly provider: string | null;
+  readonly model: string | null;
   readonly idempotencyKey: string;
   readonly attemptCount: number;
   readonly summary: string | null;
@@ -39,6 +42,7 @@ export interface EvaluationChildrenData {
     readonly concern: string | null;
     readonly suggestion: string | null;
     readonly confidence: number | null;
+    readonly unverifiedEvidenceCount: number | null;
     readonly position: number;
     readonly evidence: { readonly create: EvidenceCreate[] };
   }[];
@@ -74,6 +78,8 @@ export function toEvaluationWriteData(
     rubricVersion: snapshot.versions.rubricVersion,
     promptVersion: snapshot.versions.promptVersion,
     knowledgeVersion: snapshot.versions.knowledgeVersion,
+    provider: snapshot.versions.provider ?? null,
+    model: snapshot.versions.model ?? null,
     idempotencyKey: snapshot.idempotencyKey,
     attemptCount: snapshot.attemptCount,
     summary: outcome?.summary ?? null,
@@ -103,6 +109,7 @@ export function toEvaluationChildrenData(
       concern: result.concern ?? null,
       suggestion: result.suggestion ?? null,
       confidence: result.confidence ?? null,
+      unverifiedEvidenceCount: result.unverifiedEvidenceCount ?? null,
       position,
       evidence: { create: toEvidenceCreate(result.evidence) },
     })),
@@ -136,12 +143,7 @@ export function toEvaluation(row: EvaluationRow): Evaluation {
     id: row.id,
     submissionId: row.submissionId,
     status: row.status,
-    versions: {
-      evaluatorVersion: row.evaluatorVersion,
-      rubricVersion: row.rubricVersion,
-      promptVersion: row.promptVersion,
-      knowledgeVersion: row.knowledgeVersion,
-    },
+    versions: toVersions(row),
     idempotencyKey: row.idempotencyKey,
     attemptCount: row.attemptCount,
     outcome: toOutcome(row),
@@ -182,6 +184,18 @@ function toOutcome(row: EvaluationRow): EvaluationOutcome | null {
   return row.confidence === null ? base : { ...base, confidence: row.confidence };
 }
 
+function toVersions(row: EvaluationRow): EvaluationVersions {
+  const base: EvaluationVersions = {
+    evaluatorVersion: row.evaluatorVersion,
+    rubricVersion: row.rubricVersion,
+    promptVersion: row.promptVersion,
+    knowledgeVersion: row.knowledgeVersion,
+  };
+  const withProvider =
+    row.provider === null ? base : { ...base, provider: row.provider };
+  return row.model === null ? withProvider : { ...withProvider, model: row.model };
+}
+
 function toCriterionResult(
   row: EvaluationRow["criterionResults"][number],
 ): CriterionResult {
@@ -199,6 +213,12 @@ function toCriterionResult(
   }
   if (row.confidence !== null) {
     result = { ...result, confidence: row.confidence };
+  }
+  if (row.unverifiedEvidenceCount !== null) {
+    result = {
+      ...result,
+      unverifiedEvidenceCount: row.unverifiedEvidenceCount,
+    };
   }
   return result;
 }

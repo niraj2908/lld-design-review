@@ -95,6 +95,7 @@ export class EvaluateAttempt {
     }
 
     const evaluatorVersion = this.deps.evaluator.version;
+    const metadata = this.deps.evaluator.metadata ?? {};
     const idempotencyKey = buildEvaluationIdempotencyKey({
       attemptId: attempt.id,
       submissionVersion: submission.version,
@@ -128,8 +129,12 @@ export class EvaluateAttempt {
         versions: {
           evaluatorVersion,
           rubricVersion: problem.rubric.version,
-          promptVersion: NOT_APPLICABLE_VERSION,
+          promptVersion: metadata.promptVersion ?? NOT_APPLICABLE_VERSION,
           knowledgeVersion: NOT_APPLICABLE_VERSION,
+          ...(metadata.provider === undefined
+            ? {}
+            : { provider: metadata.provider }),
+          ...(metadata.model === undefined ? {} : { model: metadata.model }),
         },
         idempotencyKey,
         now,

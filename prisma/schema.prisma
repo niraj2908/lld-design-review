@@ -170,12 +170,12 @@ model RubricCriterion {
 }
 
 model Attempt {
-  id            String        @id
-  problemId     String
-  learnerId     String
-  attemptNumber Int
-  status        AttemptStatus
-  draftDesignId String?       @unique
+  id                  String        @id
+  problemId           String
+  learnerId           String
+  attemptNumber       Int
+  status              AttemptStatus
+  draftDesignId       String?       @unique
   /// Deliberately not a foreign key: submissions already own their attempt, and
   /// a second key in the opposite direction would make attempts and submissions
   /// circularly dependent. It is written in the same transaction as the
@@ -351,29 +351,33 @@ model Submission {
 }
 
 model Evaluation {
-  id           String           @id
-  submissionId String
-  status       EvaluationStatus
+  id               String           @id
+  submissionId     String
+  status           EvaluationStatus
   /// Versioned so a stored result can be explained after prompts, rubrics or the
   /// knowledge base move on.
   evaluatorVersion String
   rubricVersion    String
   promptVersion    String
   knowledgeVersion String
+  /// Which model produced the semantic part of this evaluation, where one did.
+  /// Never holds a credential: the provider name and the model id only.
+  provider         String?
+  model            String?
   idempotencyKey   String           @unique
   attemptCount     Int
   /// Outcome columns are null until the evaluation completes. `strengths` is a
   /// plain ordered list of sentences with no attributes of its own, so it stays
   /// a Postgres text array rather than a table.
-  summary        String?
-  confidence     Float?
-  strengths      String[]
-  failureCode    String?
-  failureMessage String?
-  createdAt      DateTime
-  updatedAt      DateTime
-  startedAt      DateTime?
-  completedAt    DateTime?
+  summary          String?
+  confidence       Float?
+  strengths        String[]
+  failureCode      String?
+  failureMessage   String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  startedAt        DateTime?
+  completedAt      DateTime?
 
   submission       Submission                  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   criterionResults EvaluationCriterionResult[]
@@ -385,16 +389,19 @@ model Evaluation {
 }
 
 model EvaluationCriterionResult {
-  id           String              @id @default(uuid())
-  evaluationId String
-  criterion    EvaluationCriterion
-  assessment   CriterionAssessment
-  concern      String?
-  suggestion   String?
-  confidence   Float?
-  position     Int
+  id                      String              @id @default(uuid())
+  evaluationId            String
+  criterion               EvaluationCriterion
+  assessment              CriterionAssessment
+  concern                 String?
+  suggestion              String?
+  confidence              Float?
+  /// How many evidence references were discarded because they could not be found
+  /// in the submitted design. Null where evidence was never checked.
+  unverifiedEvidenceCount Int?
+  position                Int
 
-  evaluation Evaluation                   @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  evaluation Evaluation                    @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   evidence   EvaluationCriterionEvidence[]
 
   @@unique([evaluationId, criterion])
