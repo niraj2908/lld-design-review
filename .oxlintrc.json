@@ -1,0 +1,84 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import", "typescript", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "off"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "no-console": "error",
+    "eqeqeq": "error",
+    "import/no-cycle": "error"
+  },
+  "ignorePatterns": ["node_modules", ".next", "coverage"],
+  "overrides": [
+    {
+      "files": ["src/domain/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "next",
+              "next/*",
+              "react",
+              "react-dom",
+              "prisma",
+              "@prisma/*",
+              "pg",
+              "groq-sdk",
+              "openai",
+              "kafkajs",
+              "ioredis",
+              "redis",
+              "node:*",
+              "fs",
+              "path",
+              "http",
+              "https",
+              "@/application/*",
+              "@/infrastructure/*",
+              "@/app/*",
+              "@/testing/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/application/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "next",
+              "next/*",
+              "react",
+              "react-dom",
+              "prisma",
+              "@prisma/*",
+              "pg",
+              "groq-sdk",
+              "openai",
+              "kafkajs",
+              "ioredis",
+              "redis",
+              "@/infrastructure/*",
+              "@/app/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "src/testing/**/*.ts", "tests/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": "off",
+        "no-console": "off"
+      }
+    }
+  ]
+}

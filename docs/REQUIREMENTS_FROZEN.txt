@@ -1,0 +1,101 @@
+LLD Practice Platform — Frozen Engineering Requirements Version: 1.0
+Date: 2026-09-24
+
+PRODUCT - Product name: DesignReview (working name) - Core thesis: help
+learners improve LLD through an iterative design-review loop, not merely
+receive a score. - Primary loop: Choose Problem -> Understand
+Requirements -> Design -> Submit -> Evaluate -> Review Feedback ->
+Refine -> Compare Attempts -> Repeat.
+
+MUST HAVE — PRODUCT R001 Problem library with 4 curated LLD problems.
+R002 Each problem contains requirements, constraints, assumptions, edge
+cases, and evaluation criteria. R003 Learner can start an attempt. R004
+Learner can save a draft. R005 Learner submits a structured LLD design.
+R006 Submission captures classes, interfaces, responsibilities,
+relationships, design decisions, and edge cases. R007 Submission state
+is persisted before evaluation. R008 Submission progresses through
+IN_PROGRESS -> SUBMITTED -> EVALUATING -> COMPLETED/FAILED. R009
+Deterministic validation runs before/alongside AI evaluation. R010 AI
+evaluation provides criterion-level feedback. R011 Every substantive AI
+concern must reference evidence from the learner submission. R012
+Evaluation explains strengths, concerns, evidence, suggestions, and
+confidence. R013 Learner can view previous attempts. R014 Learner can
+retry after evaluation failure. R015 Learner can submit an improved
+attempt. R016 Learner can compare two attempts and see design changes.
+R017 A Design Coach may guide the learner using Socratic questions. R018
+Evaluation never treats one reference design as the only correct
+solution.
+
+MUST HAVE — LLD / DOMAIN R019 Domain model represents Problem,
+Requirement, Attempt, Design, Submission, Evaluation, CriterionResult,
+Evidence, and FeedbackItem. R020 Attempt lifecycle is enforced by domain
+rules/state transitions. R021 Design contains explicit classes,
+interfaces, relationships, responsibilities, decisions, and edge cases.
+R022 Domain logic does not depend on Next.js, Prisma, PostgreSQL,
+Groq/OpenAI, Kafka, or other infrastructure. R023 Evaluator is an
+abstraction so rule-based, AI, hybrid, or human evaluation can be added.
+R024 Submission format is an abstraction so diagram/code submissions can
+be added later. R025 Repository and LLM access use ports/interfaces.
+R026 Important invariants have automated tests.
+
+MUST HAVE — EVALUATION R027 Deterministic checks cover structure,
+required fields, relationship validity, and requirement evidence
+coverage where objectively possible. R028 AI evaluates judgment-heavy
+dimensions: responsibilities, cohesion/coupling, encapsulation,
+abstraction, extensibility, edge cases, and design reasoning. R029 AI
+receives problem requirements, structured candidate design,
+deterministic findings, rubric, and retrieved domain knowledge when RAG
+is enabled. R030 AI output uses a strict schema. R031 Evidence
+validation rejects or flags feedback that cannot be grounded in the
+candidate submission. R032 Evaluation has a versioned
+rubric/prompt/knowledge context for reproducibility. R033 AI evaluation
+quality is tested against a small benchmark of strong, weak,
+alternative-valid, over-engineered, and incomplete designs.
+
+MUST HAVE — RELIABILITY R034 Learner submission is persisted
+independently of evaluator success. R035 Evaluation failure does not
+destroy the submission. R036 Evaluation is asynchronous behind an
+EvaluationDispatcher port. R037 Initial implementation may use an
+in-process/background worker. R038 Kafka is optional and must only be
+introduced if the event-driven implementation demonstrably improves
+reliability/decoupling without distracting from LLD. R039 Retry
+evaluation is idempotent. R040 Duplicate evaluation requests are
+prevented or safely deduplicated.
+
+MUST HAVE — AI/RAG R041 LLM provider is abstracted behind an LLMProvider
+interface. R042 Initial provider is configurable; code must not couple
+domain logic to one vendor. R043 Knowledge base contains curated
+LLD/OOP/design-pattern/design-quality material. R044 RAG is used only
+where retrieved knowledge improves evaluation grounding or coaching.
+R045 PostgreSQL + pgvector is the default vector-storage candidate. R046
+A separate vector database is not required for MVP. R047 Design Coach
+uses retrieved knowledge plus learner attempt context. R048 AI must not
+fabricate a “correct architecture” merely because it differs from the
+candidate.
+
+MUST HAVE — TESTING R049 Unit tests for domain invariants and state
+transitions. R050 Application tests for submit/evaluate/retry flows.
+R051 Evaluation tests for deterministic validation. R052 AI
+contract/schema tests. R053 Evidence-grounding tests. R054
+Failure/timeout/retry tests. R055 At least one end-to-end happy path.
+
+MUST HAVE — DOCUMENTATION R056 README with setup, architecture, running,
+testing, limitations, and demo. R057 RESEARCH.md with learner problem,
+competitive research, findings, gaps, and product direction. R058
+DESIGN.md/ARCHITECTURE.md with domain model, use cases, architecture,
+evaluation, trade-offs, and change tests. R059 AI_USAGE.md with 3–5
+meaningful AI-assisted decisions, accepted/rejected suggestions, and
+rationale. R060 ADRs for significant architectural decisions.
+
+EXPLICITLY OUT OF SCOPE - Kubernetes - Microservices - Multi-region
+architecture - Sharding - CDN - Full LMS - Leaderboards -
+Social/collaborative editing - Full production-grade UML editor -
+General-purpose code execution sandbox - Mandatory Kafka deployment -
+Mandatory Redis deployment - Mandatory separate vector database -
+Authentication/authorization unless needed by deployment - 100+ problem
+library - Generic chatbot disconnected from practice/evaluation
+
+OPTIONAL / PHASE 2 - Rich UML diagram editor - Code submission and
+compilation - Kafka-backed evaluation dispatcher - Redis caching/rate
+limiting - Learner skill profile - Personalized problem recommendation -
+Advanced analytics - Human review evaluator
