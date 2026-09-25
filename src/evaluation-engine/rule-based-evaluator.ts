@@ -59,6 +59,7 @@ export class RuleBasedEvaluator implements DesignEvaluator {
       ],
       coverage,
       blockingIssueCount: blockingIssues(validation).length,
+      submissionId: context.submission.id,
     });
   }
 }

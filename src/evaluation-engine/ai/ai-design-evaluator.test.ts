@@ -209,6 +209,67 @@ describe("AIDesignEvaluator", () => {
     });
   });
 
+  describe("structured-output retry", () => {
+    it("recovers from one malformed answer by retrying once, and keeps the recovered result", async () => {
+      const provider = FakeLLMProvider.sequence([
+        { output: { criteria: [], strengths: [], priorityImprovements: [] } }, // missing `summary`
+        { output: goodReview() },
+      ]);
+
+      const outcome = await new AIDesignEvaluator(provider).evaluate(contextFor());
+
+      expect(outcome.summary).toBe(goodReview().summary);
+      expect(provider.requests).toHaveLength(2);
+      expect(provider.requests[1]?.system).toContain("YOUR PREVIOUS ANSWER DID NOT MATCH");
+      // The retry is the same request otherwise — same schema, same problem data.
+      expect(provider.requests[1]?.user).toBe(provider.requests[0]?.user);
+    });
+
+    it("fails cleanly, never inventing a result, when the retry is malformed too", async () => {
+      const provider = FakeLLMProvider.sequence([
+        { output: { criteria: [] } },
+        { output: { criteria: [] } },
+      ]);
+
+      await expect(new AIDesignEvaluator(provider).evaluate(contextFor())).rejects.toThrow(
+        LLMResponseFormatError,
+      );
+      expect(provider.requests).toHaveLength(2);
+    });
+
+    it("does not retry a timeout, a rate limit, or any non-schema failure", async () => {
+      for (const error of [
+        new LLMTimeoutError(1_000),
+        new LLMRateLimitError("rate limited"),
+        new LLMUnavailableError("provider is down"),
+      ]) {
+        const provider = FakeLLMProvider.failing(error);
+
+        await expect(new AIDesignEvaluator(provider).evaluate(contextFor())).rejects.toBe(error);
+        expect(provider.requests).toHaveLength(1);
+      }
+    });
+
+    it("never attempts a third call — bounded to exactly one retry", async () => {
+      const provider = FakeLLMProvider.sequence([
+        { output: { criteria: [] } },
+        { output: { criteria: [] } },
+        { output: goodReview() },
+      ]);
+
+      await expect(new AIDesignEvaluator(provider).evaluate(contextFor())).rejects.toThrow();
+      expect(provider.requests).toHaveLength(2);
+    });
+
+    it("makes exactly one call when the first answer already validates", async () => {
+      const provider = FakeLLMProvider.answering(goodReview());
+
+      await new AIDesignEvaluator(provider).evaluate(contextFor());
+
+      expect(provider.requests).toHaveLength(1);
+    });
+  });
+
   describe("evidence grounding", () => {
     it("accepts evidence that names a real element and field", async () => {
       const outcome = await new AIDesignEvaluator(
@@ -313,6 +374,27 @@ describe("AIDesignEvaluator", () => {
       expect(item.where).toEqual([
         { entity: "ParkingLot", field: "methods", value: "exit" },
       ]);
+    });
+
+    it("gives two different submissions' priority improvements at the same index different ids", async () => {
+      // `EvaluationFeedbackItem.id` is a global primary key across every
+      // evaluation ever stored, not one scoped to this evaluation, so an id
+      // built from the array index alone would collide as soon as two
+      // different submissions each produced a priority improvement at the
+      // same index — exactly what happened in production.
+      const design = designForProblem(problem);
+      const first = await new AIDesignEvaluator(
+        FakeLLMProvider.answering(goodReview()),
+      ).evaluate({ problem, submission: submissionOf(design, { id: "sub_one" }) });
+      const second = await new AIDesignEvaluator(
+        FakeLLMProvider.answering(goodReview()),
+      ).evaluate({ problem, submission: submissionOf(design, { id: "sub_two" }) });
+
+      const firstId = first.priorityImprovements[0]?.id;
+      const secondId = second.priorityImprovements[0]?.id;
+      expect(firstId).toBeDefined();
+      expect(secondId).toBeDefined();
+      expect(firstId).not.toBe(secondId);
     });
 
     it("keeps verified evidence and discards the rest from the same finding", async () => {
@@ -425,6 +507,29 @@ describe("AIDesignEvaluator", () => {
       );
 
       expect(provider.lastRequest.timeoutMs).toBe(1_234);
+    });
+
+    it("defaults to a token budget with real headroom above a measured normal evaluation, and below the model's own ceiling", async () => {
+      const provider = FakeLLMProvider.answering(goodReview());
+      await new AIDesignEvaluator(provider).evaluate(contextFor());
+
+      // A live call against the configured Groq model produced a complete,
+      // schema-valid evaluation using ~2900 completion tokens against its true
+      // 65536-token ceiling. The default budget must sit well above that
+      // measured usage (so a more elaborate design does not truncate) and well
+      // below the model's ceiling (so it stays a considered budget, not a guess
+      // at the max).
+      expect(provider.lastRequest.maxOutputTokens).toBeGreaterThanOrEqual(8_000);
+      expect(provider.lastRequest.maxOutputTokens).toBeLessThan(65_536);
+    });
+
+    it("passes a configured token budget through to the provider", async () => {
+      const provider = FakeLLMProvider.answering(goodReview());
+      await new AIDesignEvaluator(provider, { maxOutputTokens: 9_000 }).evaluate(
+        contextFor(),
+      );
+
+      expect(provider.lastRequest.maxOutputTokens).toBe(9_000);
     });
   });
 

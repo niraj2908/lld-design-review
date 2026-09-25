@@ -1,7 +1,6 @@
 import type { CoachContext, DesignCoach } from "@/application/ports/design-coach";
 import type { KnowledgeContextProvider } from "@/application/ports/knowledge-context";
 import type { LLMProvider } from "@/application/ports/llm-provider";
-import { LLMResponseFormatError } from "@/application/ports/llm-provider";
 import type {
   CoachAnswer,
   CoachObservation,
@@ -9,7 +8,11 @@ import type {
 } from "@/domain/coach/coach-answer";
 import { filterKnownCriteria } from "@/domain/coach/evaluation-reference-validation";
 import { validateEvidence } from "@/domain/evaluation/evidence-validation";
-import type { Evidence } from "@/domain/feedback/evidence";
+import {
+  presentOrUndefined,
+  toDomainEvidence,
+} from "@/evaluation-engine/ai/ai-response-schema";
+import { generateStructuredWithRetry } from "@/evaluation-engine/ai/llm-structured-retry";
 import { buildCoachKnowledgeRequest } from "./coach-knowledge-query";
 import { COACH_PROMPT_VERSION, COACH_SYSTEM_PROMPT, buildCoachUserPrompt } from "./coach-prompt";
 import {
@@ -59,30 +62,34 @@ export class LLMDesignCoach implements DesignCoach {
   }
 
   async ask(context: CoachContext): Promise<CoachAnswer> {
+    // Marks the start of this request's share of the route's 60-second execution
+    // budget; see `AIDesignEvaluator.evaluate` for why the retry needs it.
+    const startedAt = Date.now();
     const grounded = await this.retrieveKnowledge(context);
 
-    const result = await this.llm.generateStructured({
-      promptVersion: COACH_PROMPT_VERSION,
-      system: COACH_SYSTEM_PROMPT,
-      user: buildCoachUserPrompt(grounded),
-      responseSchema: coachAnswerJsonSchema,
-      schemaName: COACH_ANSWER_SCHEMA_NAME,
-      temperature: this.options.temperature,
-      maxOutputTokens: this.options.maxOutputTokens,
-      timeoutMs: this.options.timeoutMs,
-    });
+    // `generateStructuredWithRetry` re-validates with `coachAnswerSchema`
+    // regardless of the provider's own schema mode, and allows at most one
+    // retry — same provider, same model — if and only if that first answer
+    // fails to validate AND enough of the execution budget remains. Any other
+    // kind of failure is not retried here.
+    const { output } = await generateStructuredWithRetry(
+      this.llm,
+      {
+        promptVersion: COACH_PROMPT_VERSION,
+        system: COACH_SYSTEM_PROMPT,
+        user: buildCoachUserPrompt(grounded),
+        responseSchema: coachAnswerJsonSchema,
+        schemaName: COACH_ANSWER_SCHEMA_NAME,
+        temperature: this.options.temperature,
+        maxOutputTokens: this.options.maxOutputTokens,
+        timeoutMs: this.options.timeoutMs,
+      },
+      coachAnswerSchema,
+      "design coach answer",
+      startedAt,
+    );
 
-    const parsed = coachAnswerSchema.safeParse(result.output);
-    if (!parsed.success) {
-      throw new LLMResponseFormatError(
-        `The coach's answer did not match the expected schema: ${parsed.error.issues
-          .map((issue) => `${issue.path.join(".")} ${issue.message}`)
-          .join("; ")}`,
-        { cause: parsed.error },
-      );
-    }
-
-    return this.ground(parsed.data, grounded);
+    return this.ground(output, grounded);
   }
 
   private async retrieveKnowledge(context: CoachContext): Promise<CoachContext> {
@@ -108,7 +115,7 @@ export class LLMDesignCoach implements DesignCoach {
     const observations: CoachObservation[] = [];
     for (const entry of output.observations) {
       const { verified, rejected } = validateEvidence(
-        entry.evidence as readonly Evidence[],
+        entry.evidence.map(toDomainEvidence),
         context.design,
       );
       unverified += rejected.length;
@@ -127,10 +134,12 @@ export class LLMDesignCoach implements DesignCoach {
     );
     unverified += output.evaluationReferences.length - evaluationReferences.length;
 
+    const recommendationInput = presentOrUndefined(output.recommendation);
     const recommendation: CoachRecommendation | undefined =
-      output.recommendation === undefined
+      recommendationInput === undefined
         ? undefined
-        : { suggestion: output.recommendation.suggestion, rationale: output.recommendation.rationale };
+        : { suggestion: recommendationInput.suggestion, rationale: recommendationInput.rationale };
+    const followUpQuestion = presentOrUndefined(output.followUpQuestion);
 
     return {
       answer: output.answer,
@@ -141,9 +150,7 @@ export class LLMDesignCoach implements DesignCoach {
       // wrote itself — the same rule the evaluator applies.
       knowledgeCitations: context.knowledge?.citations ?? [],
       certainty: output.certainty,
-      ...(output.followUpQuestion === undefined
-        ? {}
-        : { followUpQuestion: output.followUpQuestion }),
+      ...(followUpQuestion === undefined ? {} : { followUpQuestion }),
       unverifiedReferenceCount: unverified,
     };
   }

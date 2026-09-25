@@ -42,6 +42,47 @@ function codes(outcome: EvaluationOutcome): readonly string[] {
 }
 
 describe("RuleBasedEvaluator", () => {
+  describe("feedback item id uniqueness", () => {
+    it("gives two different submissions' findings at the same criterion and position different ids", async () => {
+      // `EvaluationFeedbackItem.id` is a global primary key across every
+      // evaluation ever stored, so an id built only from the criterion and
+      // position would collide as soon as two different submissions produced
+      // the same finding at the same position — exactly what happened in
+      // production once enough evaluations existed.
+      const design = { ...coveredDesign(), requirementMappings: [] };
+      const first = await evaluator.evaluate({
+        problem,
+        submission: submissionOf(design, { id: "sub_one" }),
+      });
+      const second = await evaluator.evaluate({
+        problem,
+        submission: submissionOf(design, { id: "sub_two" }),
+      });
+
+      const firstId = first.priorityImprovements[0]?.id;
+      const secondId = second.priorityImprovements[0]?.id;
+      expect(firstId).toBeDefined();
+      expect(secondId).toBeDefined();
+      expect(firstId).not.toBe(secondId);
+    });
+
+    it("gives the same submission the same ids on a second run — deterministic, not random", async () => {
+      const design = { ...coveredDesign(), requirementMappings: [] };
+      const first = await evaluator.evaluate({
+        problem,
+        submission: submissionOf(design, { id: "sub_repeat" }),
+      });
+      const second = await evaluator.evaluate({
+        problem,
+        submission: submissionOf(design, { id: "sub_repeat" }),
+      });
+
+      expect(second.priorityImprovements.map((item) => item.id)).toEqual(
+        first.priorityImprovements.map((item) => item.id),
+      );
+    });
+  });
+
   it("reports its version", () => {
     expect(evaluator.version).toBe(RULE_EVALUATOR_VERSION);
     expect(RULE_EVALUATOR_VERSION).toBe("rules-v1");

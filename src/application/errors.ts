@@ -91,6 +91,30 @@ export class EvaluationExecutionError extends ApplicationError {
   }
 }
 
+/**
+ * A second request raced this attempt's evaluation while the first one was
+ * still running — the unique idempotency key means only one evaluation row can
+ * ever exist for this attempt, submission version and evaluator, so this is a
+ * genuine "someone else is already doing this," never a guess. Distinct from
+ * `EvaluationExecutionError`: nothing failed here, and the caller's own retry
+ * (or a plain re-request) will pick up the other invocation's result once it
+ * finishes, via the same idempotency check that raised this.
+ */
+export class EvaluationInProgressError extends ApplicationError {
+  readonly code = "EVALUATION_IN_PROGRESS";
+
+  constructor(
+    readonly detail: {
+      readonly attemptId: string;
+      readonly evaluationId: string;
+    },
+  ) {
+    super(
+      `Evaluation ${detail.evaluationId} for this attempt is already running. Try again shortly.`,
+    );
+  }
+}
+
 export class CoachQuestionInvalidError extends ApplicationError {
   readonly code = "COACH_QUESTION_INVALID";
 

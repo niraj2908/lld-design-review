@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { emptyStructuredDesign } from "@/domain/design/structured-design";
 import type { StructuredDesign } from "@/domain/design/structured-design";
 import type { CoachContext } from "@/application/ports/design-coach";
-import { LLMResponseFormatError } from "@/application/ports/llm-provider";
+import {
+  LLMRateLimitError,
+  LLMResponseFormatError,
+  LLMTimeoutError,
+  LLMUnavailableError,
+} from "@/application/ports/llm-provider";
 import { FakeLLMProvider } from "@/testing/fake-llm-provider";
 import { FakeKnowledgeContextProvider } from "@/testing/fake-knowledge";
 import { parkingLotProblem } from "@/testing/fixtures";
@@ -210,6 +215,61 @@ describe("LLMDesignCoach", () => {
     const coach = new LLMDesignCoach(llm);
 
     await expect(coach.ask(context())).rejects.toThrow(LLMResponseFormatError);
+  });
+
+  describe("structured-output retry", () => {
+    it("recovers from one malformed answer by retrying once, and keeps the recovered answer", async () => {
+      const llm = FakeLLMProvider.sequence([
+        { output: { nonsense: true } },
+        { output: validAnswer },
+      ]);
+
+      const answer = await new LLMDesignCoach(llm).ask(context());
+
+      expect(answer.answer).toBe(validAnswer.answer);
+      expect(llm.requests).toHaveLength(2);
+      expect(llm.requests[1]?.system).toContain("YOUR PREVIOUS ANSWER DID NOT MATCH");
+      expect(llm.requests[1]?.user).toBe(llm.requests[0]?.user);
+    });
+
+    it("fails cleanly, never inventing an answer, when the retry is malformed too", async () => {
+      const llm = FakeLLMProvider.sequence([{ output: { nonsense: true } }, { output: { still: "wrong" } }]);
+
+      await expect(new LLMDesignCoach(llm).ask(context())).rejects.toThrow(LLMResponseFormatError);
+      expect(llm.requests).toHaveLength(2);
+    });
+
+    it("does not retry a timeout, a rate limit, or any non-schema failure", async () => {
+      for (const error of [
+        new LLMTimeoutError(1_000),
+        new LLMRateLimitError("rate limited"),
+        new LLMUnavailableError("provider is down"),
+      ]) {
+        const llm = FakeLLMProvider.failing(error);
+
+        await expect(new LLMDesignCoach(llm).ask(context())).rejects.toBe(error);
+        expect(llm.requests).toHaveLength(1);
+      }
+    });
+
+    it("never attempts a third call — bounded to exactly one retry", async () => {
+      const llm = FakeLLMProvider.sequence([
+        { output: { nonsense: true } },
+        { output: { nonsense: true } },
+        { output: validAnswer },
+      ]);
+
+      await expect(new LLMDesignCoach(llm).ask(context())).rejects.toThrow();
+      expect(llm.requests).toHaveLength(2);
+    });
+
+    it("makes exactly one call when the first answer already validates", async () => {
+      const llm = FakeLLMProvider.answering(validAnswer);
+
+      await new LLMDesignCoach(llm).ask(context());
+
+      expect(llm.requests).toHaveLength(1);
+    });
   });
 
   it("never lets prompt-injection text in the learner's design or question escape into instructions", async () => {

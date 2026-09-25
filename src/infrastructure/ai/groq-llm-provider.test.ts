@@ -75,7 +75,7 @@ describe("GroqLLMProvider", () => {
       json_schema: {
         name: "design_review",
         schema: { type: "object" },
-        strict: false,
+        strict: true,
       },
     });
     expect(sent.temperature).toBe(0.2);
@@ -216,6 +216,47 @@ describe("translateGroqError", () => {
   it("maps any other API error to unavailable", () => {
     expect(
       translateGroqError(new APIError(500, undefined, "boom", new Headers()), 1),
+    ).toBeInstanceOf(LLMUnavailableError);
+  });
+
+  it("maps Groq's own structured-output rejection to a response-format failure, not a generic unavailable one", () => {
+    // The shape actually observed from Groq: the full response body, one level
+    // deeper than the SDK's own `.error` accessor implies.
+    const body = {
+      error: {
+        message: "Generated JSON does not match the expected schema.",
+        type: "invalid_request_error",
+        code: "json_validate_failed",
+      },
+    };
+
+    expect(
+      translateGroqError(new APIError(400, body, "400 rejected", new Headers()), 1),
+    ).toBeInstanceOf(LLMResponseFormatError);
+  });
+
+  it("also recognises the code one level shallower, in case the SDK unwraps the body", () => {
+    const body = { code: "json_validate_failed", message: "does not match schema" };
+
+    expect(
+      translateGroqError(new APIError(400, body, "400 rejected", new Headers()), 1),
+    ).toBeInstanceOf(LLMResponseFormatError);
+  });
+
+  it("falls back to the message text when the error body has neither shape", () => {
+    const translated = translateGroqError(
+      new APIError(400, undefined, "400 {\"code\":\"json_validate_failed\"}", new Headers()),
+      1,
+    );
+
+    expect(translated).toBeInstanceOf(LLMResponseFormatError);
+  });
+
+  it("still maps an ordinary 400 with no schema-rejection code to unavailable, not response-format", () => {
+    const body = { message: "missing required field", type: "invalid_request_error", code: "invalid_request" };
+
+    expect(
+      translateGroqError(new APIError(400, body, "400 bad request", new Headers()), 1),
     ).toBeInstanceOf(LLMUnavailableError);
   });
 

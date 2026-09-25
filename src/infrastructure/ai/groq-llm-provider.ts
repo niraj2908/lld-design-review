@@ -66,18 +66,21 @@ export class GroqLLMProvider implements LLMProvider {
           // Structured outputs: the model is constrained to the schema, and the
           // caller validates the result anyway (`aiReviewSchema` / `coachAnswerSchema`
           // re-parse it regardless — "a provider's schema mode is a hint, not a
-          // guarantee"). `strict: false` rather than `true`: OpenAI's full strict
-          // contract additionally demands every optional property still be listed
-          // in `required` (expressed as nullable instead), which the Zod-generated
-          // schemas here do not do, and at least one model this project has run on
-          // (`openai/gpt-oss-120b`) enforces that literally and 400s on `true`.
-          // Since Zod re-validates unconditionally, nothing is trusted here either way.
+          // guarantee"). `strict: true` requires every property of every nested
+          // object to be listed in `required`, with a nullable type standing in
+          // for "optional" — `requireAllProperties` and the `.nullable()` fields
+          // in `ai-response-schema.ts` / `coach-response-schema.ts` produce exactly
+          // that shape, so this holds for every model this project has run on
+          // (`openai/gpt-oss-120b` included). Without strict mode, at least that
+          // model intermittently emitted structurally invalid JSON for these
+          // schemas' nested arrays — caught either by Groq's own generation
+          // validator or by the Zod re-parse below, but only after wasting the call.
           response_format: {
             type: "json_schema",
             json_schema: {
               name: request.schemaName,
               schema: request.responseSchema as Record<string, unknown>,
-              strict: false,
+              strict: true,
             },
           },
           ...(request.temperature === undefined
@@ -156,6 +159,17 @@ export function translateGroqError(cause: unknown, timeoutMs: number): Error {
       { cause },
     );
   }
+  if (cause instanceof APIError && groqErrorCode(cause) === "json_validate_failed") {
+    // Groq's own generation validator rejected the model's structured output —
+    // the same class of failure as this codebase's own Zod check failing, just
+    // caught one step earlier. Classifying it as `LLMResponseFormatError` (not
+    // the generic `LLMUnavailableError` below) is what lets the retry-once
+    // policy in `generateStructuredWithRetry` recognise it and act on it.
+    return new LLMResponseFormatError(
+      `The language model provider rejected the generated output as invalid JSON: ${cause.message}`,
+      { cause },
+    );
+  }
   if (cause instanceof APIError) {
     return new LLMUnavailableError(
       `The language model provider returned an error: ${cause.message}`,
@@ -163,4 +177,35 @@ export function translateGroqError(cause: unknown, timeoutMs: number): Error {
     );
   }
   return cause instanceof Error ? cause : new Error(String(cause));
+}
+
+/**
+ * Groq's own error `code` for "the model's generation did not validate against
+ * the requested JSON Schema" — read defensively, since the SDK's own typing
+ * only promises `error` is the parsed response body, not which key holds the
+ * code at. Falls back to the one substring Groq's own message reliably
+ * contains for this failure, so a shape this does not anticipate still works.
+ */
+function groqErrorCode(error: APIError): string | undefined {
+  const direct = errorCodeOf(error.error);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const nested = errorCodeOf(
+    typeof error.error === "object" && error.error !== null
+      ? (error.error as Record<string, unknown>).error
+      : undefined,
+  );
+  if (nested !== undefined) {
+    return nested;
+  }
+  return error.message.includes("json_validate_failed") ? "json_validate_failed" : undefined;
+}
+
+function errorCodeOf(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  const code = (value as Record<string, unknown>).code;
+  return typeof code === "string" ? code : undefined;
 }

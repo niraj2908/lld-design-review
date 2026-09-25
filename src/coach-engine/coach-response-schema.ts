@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { evidenceSchema } from "@/evaluation-engine/ai/ai-response-schema";
+import {
+  evidenceSchema,
+  requireAllProperties,
+} from "@/evaluation-engine/ai/ai-response-schema";
 import { DETERMINISTIC_CRITERIA } from "@/domain/evaluation/review-criterion";
 import { EVALUATION_CRITERIA } from "@/domain/problem/rubric";
 import { COACH_CERTAINTIES } from "@/domain/coach/coach-answer";
@@ -30,10 +33,15 @@ const recommendationSchema = z.object({
 export const coachAnswerSchema = z.object({
   answer: z.string().min(1).max(2000),
   observations: z.array(observationSchema).max(8),
-  recommendation: recommendationSchema.optional(),
+  // `.nullable()` alongside `.optional()`: an omitted key still parses (every
+  // existing test fixture, and any non-strict caller), while `requireAllProperties`
+  // below makes the *generated JSON Schema* list the key as required with a
+  // nullable type — what a strict-structured-output provider needs to always
+  // emit it, using `null` to say "no recommendation" instead of omitting the key.
+  recommendation: recommendationSchema.nullable().optional(),
   evaluationReferences: z.array(z.enum(ALL_CRITERIA)).max(6).default([]),
   certainty: z.enum(COACH_CERTAINTIES),
-  followUpQuestion: z.string().min(1).max(300).optional(),
+  followUpQuestion: z.string().min(1).max(300).nullable().optional(),
 });
 
 export type CoachModelOutput = z.infer<typeof coachAnswerSchema>;
@@ -42,4 +50,5 @@ export const COACH_ANSWER_SCHEMA_NAME = "design_coach_answer";
 
 export const coachAnswerJsonSchema: JsonSchema = z.toJSONSchema(coachAnswerSchema, {
   target: "draft-7",
+  override: requireAllProperties,
 });

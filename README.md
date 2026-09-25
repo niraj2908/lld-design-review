@@ -524,16 +524,41 @@ Stated honestly, not minimized:
   product accepts today.
 - **The knowledge base is small and curated** (31 documents), by design —
   breadth was explicitly not the differentiation this project chose (see
-  `docs/RESEARCH.md`).
+  `docs/RESEARCH.md`). The catalogue and ingestion pipeline exist and are
+  tested; the current production deployment has not run ingestion (no
+  `EMBEDDING_API_KEY` configured there), so it currently evaluates without
+  retrieved knowledge — see [Deployment](#deployment).
 
 ## 19. Deployment
 
-**Live demo: Coming soon.**
+**Live demo: https://lld-design-review.vercel.app**
 
-No live deployment exists yet; this section will be updated with a verified
-production URL once one does; no URL is invented in the meantime.
+Deployed on Vercel, backed by a Neon PostgreSQL (pgvector) database. The
+learner workflow — problem browsing, attempt creation, draft save, submission,
+attempt history, and attempt comparison — is live and verified working.
 
-Deployment readiness verified during this milestone:
+AI evaluation and Design Coach are wired to a real Groq API key. Real,
+successful production calls have been observed — including a live-reproduced
+concurrent-request race that confirmed the idempotency handling works under
+an actual duplicate request — but a full live confirmation of the most recent
+fix (completing, persisting, and returning) has not been possible since,
+because the configured key has been rate-limited by Groq for an extended
+window during final verification. This surfaces to a learner as a `502` with
+a message that the submission is safe and the evaluation can be retried,
+never as data loss or a corrupted attempt state, and it is a provider-side
+condition, not an application defect — see [Limitations](#limitations). The
+full application-level test suite (unit, integration, and a live-reproduced
+concurrency test) does not depend on Groq's availability and is green
+regardless.
+
+The knowledge/RAG layer is currently inactive in this deployment: no
+`EMBEDDING_API_KEY` is configured, so `AIDesignEvaluator` and `LLMDesignCoach`
+run without retrieved knowledge (an intentional degraded mode the code
+enforces explicitly, never a silent fallback to a weaker retrieval method —
+see [Knowledge base](#knowledge-base)). Evaluation and coaching remain fully
+functional without it; only citation-backed grounding is absent.
+
+Deployment readiness verified:
 
 - Production build succeeds (`npm run build`) with no development-only
   assumptions.

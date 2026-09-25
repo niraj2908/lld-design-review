@@ -33,6 +33,9 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   // Both attempts exist and are visible to the caller; comparing them is simply not
   // a valid request — the same attempt twice, or two different problems.
   COMPARISON_INVALID: 409,
+  // Nothing failed; a concurrent request is already evaluating the same
+  // attempt. A plain retry resolves this once that request finishes.
+  EVALUATION_IN_PROGRESS: 409,
 
   // The request parsed, but what it carries breaks the rules of a design.
   DESIGN_INVALID: 422,
