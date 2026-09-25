@@ -7,6 +7,7 @@ import {
   RuleBasedEvaluator,
 } from "@/evaluation-engine/rule-based-evaluator";
 import { EvaluateAttempt } from "@/application/use-cases/evaluate-attempt";
+import { createUseCases } from "@/infrastructure/composition-root";
 import { designForProblem } from "@/testing/fixtures";
 import type { Problem } from "@/domain/problem/problem";
 import {
@@ -16,6 +17,22 @@ import {
 } from "./harness";
 
 const harness = createIntegrationHarness();
+
+/**
+ * This suite's whole premise is the deterministic evaluator alone — its own
+ * title says so. `harness.useCases` builds its evaluator from `process.env` by
+ * default (`createDefaultEvaluator`), which silently becomes a live,
+ * Groq-backed `HybridEvaluator` in any environment that happens to have
+ * `GROQ_API_KEY` set — for local development, say, where a key is exactly what
+ * you *want* set. That would make this suite's "5 deterministic criteria"
+ * assertions fail (or hang on a real network call) for a reason that has
+ * nothing to do with what the suite is testing. Building the evaluator
+ * explicitly, once, here, keeps this suite deterministic and offline
+ * regardless of what else is configured in the environment it runs in.
+ */
+const deterministicUseCases = createUseCases(harness.repositories, {
+  evaluator: new RuleBasedEvaluator(),
+});
 
 afterAll(async () => {
   await harness.prisma.$disconnect();
@@ -38,7 +55,7 @@ describe("deterministic evaluation against PostgreSQL", () => {
     const problem = await seedAndLoadProblem(harness);
     const attemptId = await submittedAttempt(problem);
 
-    const result = await harness.useCases.evaluateAttempt.execute({ attemptId });
+    const result = await deterministicUseCases.evaluateAttempt.execute({ attemptId });
 
     expect(result.evaluationStatus).toBe("COMPLETED");
     expect(result.attemptStatus).toBe("COMPLETED");
@@ -56,7 +73,7 @@ describe("deterministic evaluation against PostgreSQL", () => {
     const problem = await seedAndLoadProblem(harness);
     const attemptId = await submittedAttempt(problem);
 
-    await harness.useCases.evaluateAttempt.execute({ attemptId });
+    await deterministicUseCases.evaluateAttempt.execute({ attemptId });
 
     const rows = await harness.prisma.evaluationCriterionResult.findMany({
       orderBy: { position: "asc" },
@@ -82,7 +99,7 @@ describe("deterministic evaluation against PostgreSQL", () => {
     const submission = await harness.repositories.submissions.findLatestByAttemptId(
       attemptId,
     );
-    const expected = await harness.useCases.evaluateAttempt.execute({ attemptId });
+    const expected = await deterministicUseCases.evaluateAttempt.execute({ attemptId });
 
     const direct = await new RuleBasedEvaluator().evaluate({
       problem,
@@ -115,7 +132,7 @@ describe("deterministic evaluation against PostgreSQL", () => {
       },
     });
 
-    await harness.useCases.evaluateAttempt.execute({
+    await deterministicUseCases.evaluateAttempt.execute({
       attemptId: started.attemptId,
     });
 
@@ -135,14 +152,14 @@ describe("deterministic evaluation against PostgreSQL", () => {
   it("returns the stored evaluation instead of writing a second one", async () => {
     const problem = await seedAndLoadProblem(harness);
     const attemptId = await submittedAttempt(problem);
-    const first = await harness.useCases.evaluateAttempt.execute({ attemptId });
+    const first = await deterministicUseCases.evaluateAttempt.execute({ attemptId });
 
     const attempt = await harness.repositories.attempts.findById(attemptId);
     await harness.repositories.attempts.update(
       Attempt.restore({ ...attempt!.toSnapshot(), status: "EVALUATING" }),
     );
 
-    const second = await harness.useCases.evaluateAttempt.execute({ attemptId });
+    const second = await deterministicUseCases.evaluateAttempt.execute({ attemptId });
 
     expect(second.reused).toBe(true);
     expect(second.evaluationId).toBe(first.evaluationId);

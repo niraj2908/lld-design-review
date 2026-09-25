@@ -1,3 +1,4 @@
+import { AskDesignCoach } from "@/application/use-cases/ask-design-coach";
 import { CompareAttempts } from "@/application/use-cases/compare-attempts";
 import { EvaluateAttempt } from "@/application/use-cases/evaluate-attempt";
 import { GetAttempt } from "@/application/use-cases/get-attempt";
@@ -7,6 +8,7 @@ import { SaveDraft } from "@/application/use-cases/save-draft";
 import { StartAttempt } from "@/application/use-cases/start-attempt";
 import { SubmitAttempt } from "@/application/use-cases/submit-attempt";
 import type { Clock } from "@/application/ports/clock";
+import type { DesignCoach } from "@/application/ports/design-coach";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { KnowledgeContextProvider } from "@/application/ports/knowledge-context";
 import { EmbeddingConfigurationError } from "@/application/ports/embedding-provider";
@@ -20,6 +22,7 @@ import type { IdGenerator } from "@/application/ports/id-generator";
 import { AIDesignEvaluator } from "@/evaluation-engine/ai/ai-design-evaluator";
 import { HybridEvaluator } from "@/evaluation-engine/hybrid-evaluator";
 import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
+import { LLMDesignCoach } from "@/coach-engine/design-coach";
 import { GroqLLMProvider } from "./ai/groq-llm-provider";
 import { isGroqConfigured, readGroqConfig } from "./ai/groq-config";
 import {
@@ -54,6 +57,7 @@ export interface UseCases {
   readonly getAttemptHistory: GetAttemptHistory;
   readonly retryEvaluation: RetryEvaluation;
   readonly compareAttempts: CompareAttempts;
+  readonly askDesignCoach: AskDesignCoach;
 }
 
 export function createRepositories(prisma: PrismaClient): Repositories {
@@ -76,11 +80,15 @@ export function createUseCases(
     readonly clock?: Clock;
     readonly ids?: IdGenerator;
     readonly evaluator?: DesignEvaluator;
+    /** `undefined` is a valid, meaningful value here — it means no coach is configured. */
+    readonly coach?: DesignCoach | undefined;
   } = {},
 ): UseCases {
   const clock = dependencies.clock ?? new SystemClock();
   const ids = dependencies.ids ?? new UuidIdGenerator();
   const evaluator = dependencies.evaluator ?? createDefaultEvaluator();
+  const coach =
+    "coach" in dependencies ? dependencies.coach : createDesignCoachIfAvailable();
   const { problems, attempts, submissions, evaluations } = repositories;
 
   return {
@@ -121,6 +129,13 @@ export function createUseCases(
       submissions,
       evaluations,
     }),
+    askDesignCoach: new AskDesignCoach({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
+      coach,
+    }),
   };
 }
 
@@ -149,6 +164,29 @@ export function createDefaultEvaluator(
       : new AIDesignEvaluator(provider, { knowledge });
 
   return new HybridEvaluator(deterministic, judge);
+}
+
+/**
+ * The design coach when a model is configured, and `undefined` otherwise.
+ *
+ * Unlike the evaluator, there is no deterministic fallback to offer instead:
+ * coaching is inherently a conversation with a model, so the absence of one
+ * means the absence of a coach, not a lesser one. Callers are expected to turn
+ * `undefined` into a clear "not available" answer rather than treating it as a
+ * configuration bug — see `CoachNotAvailableError`.
+ */
+export function createDesignCoachIfAvailable(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  knowledge: KnowledgeContextProvider | undefined = undefined,
+): DesignCoach | undefined {
+  if (!isGroqConfigured(env)) {
+    return undefined;
+  }
+
+  const provider = new GroqLLMProvider(readGroqConfig(env));
+  return knowledge === undefined
+    ? new LLMDesignCoach(provider)
+    : new LLMDesignCoach(provider, { knowledge });
 }
 
 /**

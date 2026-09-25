@@ -64,13 +64,20 @@ export class GroqLLMProvider implements LLMProvider {
             { role: "user", content: request.user },
           ],
           // Structured outputs: the model is constrained to the schema, and the
-          // caller validates the result anyway.
+          // caller validates the result anyway (`aiReviewSchema` / `coachAnswerSchema`
+          // re-parse it regardless — "a provider's schema mode is a hint, not a
+          // guarantee"). `strict: false` rather than `true`: OpenAI's full strict
+          // contract additionally demands every optional property still be listed
+          // in `required` (expressed as nullable instead), which the Zod-generated
+          // schemas here do not do, and at least one model this project has run on
+          // (`openai/gpt-oss-120b`) enforces that literally and 400s on `true`.
+          // Since Zod re-validates unconditionally, nothing is trusted here either way.
           response_format: {
             type: "json_schema",
             json_schema: {
               name: request.schemaName,
               schema: request.responseSchema as Record<string, unknown>,
-              strict: true,
+              strict: false,
             },
           },
           ...(request.temperature === undefined

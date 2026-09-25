@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { RELATIONSHIP_TYPES } from "@/domain/design/relationship-type";
 import { DEFAULT_DESIGN_LIMITS } from "@/domain/design/design-limits";
+import {
+  MAX_QUESTION_LENGTH,
+  MIN_QUESTION_LENGTH,
+} from "@/application/use-cases/ask-design-coach";
 
 const name = z.string().trim().max(DEFAULT_DESIGN_LIMITS.maxNameLength);
 const text = z.string().trim().max(DEFAULT_DESIGN_LIMITS.maxTextLength);
@@ -119,3 +123,17 @@ export const idSchema = z
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9_-]+$/u, "Expected an identifier.");
+
+/**
+ * The bounds are `AskDesignCoach`'s own — imported rather than restated, so the
+ * API rejects an out-of-range question before it is even parsed into a request,
+ * and the use case's own check (for a caller that reaches it directly) can never
+ * silently drift from what the wire schema already enforced.
+ */
+export const askCoachSchema = z.object({
+  question: z
+    .string()
+    .trim()
+    .min(MIN_QUESTION_LENGTH)
+    .max(MAX_QUESTION_LENGTH),
+});

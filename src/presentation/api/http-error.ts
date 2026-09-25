@@ -41,10 +41,16 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   SUBMISSION_FORMAT_UNSUPPORTED: 422,
   PROBLEM_INVALID: 422,
   ATTEMPT_INVALID: 422,
+  COACH_QUESTION_INVALID: 422,
 
   // The submission survived; the review did not. A failure in something we depend on
   // rather than in the request.
   EVALUATION_EXECUTION_FAILED: 502,
+  COACH_EXECUTION_FAILED: 502,
+
+  // The request is fine; this environment simply has no language model configured
+  // to ask, and there is no deterministic coach to fall back to.
+  COACH_NOT_CONFIGURED: 503,
 };
 
 /** Messages we are willing to replace, because the domain's wording is internal. */

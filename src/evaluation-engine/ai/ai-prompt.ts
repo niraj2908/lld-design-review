@@ -156,7 +156,8 @@ function knowledgeSection(knowledge: KnowledgeContext | undefined): string {
   return `${knowledge.text}\n`;
 }
 
-function renderDesign(design: StructuredDesign): string {
+/** Exported for reuse by the coach engine, which renders the same design shape into its own prompt. */
+export function renderDesign(design: StructuredDesign): string {
   const lines: string[] = [];
 
   lines.push("CLASSES");

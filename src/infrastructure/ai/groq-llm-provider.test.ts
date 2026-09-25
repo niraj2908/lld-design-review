@@ -75,7 +75,7 @@ describe("GroqLLMProvider", () => {
       json_schema: {
         name: "design_review",
         schema: { type: "object" },
-        strict: true,
+        strict: false,
       },
     });
     expect(sent.temperature).toBe(0.2);

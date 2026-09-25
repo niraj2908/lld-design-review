@@ -7,9 +7,11 @@ import {
 import { FixedClock } from "./fixed-clock";
 import { SequentialIdGenerator } from "./sequential-id-generator";
 import { parkingLotProblem } from "./fixtures";
+import type { DesignCoach } from "@/application/ports/design-coach";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { Problem } from "@/domain/problem/problem";
 import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
+import { AskDesignCoach } from "@/application/use-cases/ask-design-coach";
 import { CompareAttempts } from "@/application/use-cases/compare-attempts";
 import { EvaluateAttempt } from "@/application/use-cases/evaluate-attempt";
 import { GetAttempt } from "@/application/use-cases/get-attempt";
@@ -36,11 +38,13 @@ export interface Harness {
   readonly getAttemptHistory: GetAttemptHistory;
   readonly retryEvaluation: RetryEvaluation;
   readonly compareAttempts: CompareAttempts;
+  readonly askDesignCoach: AskDesignCoach;
 }
 
 export function createHarness(
   problem: Problem = parkingLotProblem(),
   evaluator: DesignEvaluator = new RuleBasedEvaluator(),
+  coach?: DesignCoach,
 ): Harness {
   const problems = new InMemoryProblemRepository([problem]);
   const attempts = new InMemoryAttemptRepository();
@@ -94,6 +98,13 @@ export function createHarness(
       problems,
       submissions,
       evaluations,
+    }),
+    askDesignCoach: new AskDesignCoach({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
+      coach,
     }),
   };
 }

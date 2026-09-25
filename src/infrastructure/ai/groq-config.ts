@@ -8,17 +8,23 @@ export interface GroqConfig {
 }
 
 /**
- * The model this project reviews designs with: Llama 3.3 70B on Groq.
+ * The model this project reviews designs with: OpenAI's gpt-oss-120b, hosted on
+ * Groq. (Previously Llama 3.3 70B — Groq retired that id; verified live via the
+ * models endpoint below during M11 and confirmed working end to end, including
+ * structured output, against this codebase's actual evaluator and coach.)
  *
- * Declared once, here, and overridable with `GROQ_MODEL` so retiring it is a
- * configuration change rather than an edit. Providers retire ids on their own
+ * Declared once, here, and overridable with `GROQ_MODEL` so retiring it again is
+ * a configuration change rather than an edit. Providers retire ids on their own
  * schedule and a stale one fails at call time as a 404, so re-check it against
  * the ids the key can actually use before relying on a long run:
  *
  *   curl -sH "Authorization: Bearer $GROQ_API_KEY" \
  *     https://api.groq.com/openai/v1/models | jq -r '.data[].id'
+ *
+ * `openai/gpt-oss-20b` is a smaller, faster, cheaper alternative on the same
+ * account if a quicker demo matters more than review depth.
  */
-export const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_RETRIES = 1;

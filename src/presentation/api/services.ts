@@ -2,6 +2,7 @@ import { GetProblem } from "@/application/use-cases/get-problem";
 import { ListAttempts } from "@/application/use-cases/list-attempts";
 import { ListProblems } from "@/application/use-cases/list-problems";
 import {
+  createDesignCoachIfAvailable,
   createKnowledgeServicesIfAvailable,
   createRepositories,
   createUseCases,
@@ -36,7 +37,8 @@ export function createApiServices(
   const knowledge = createKnowledgeServicesIfAvailable(prisma, env);
 
   const evaluator = createDefaultEvaluator(env, knowledge?.contextBuilder);
-  const useCases = createUseCases(repositories, { evaluator });
+  const coach = createDesignCoachIfAvailable(env, knowledge?.contextBuilder);
+  const useCases = createUseCases(repositories, { evaluator, coach });
 
   return {
     ...useCases,

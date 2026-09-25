@@ -165,6 +165,7 @@ describe("dependency direction", () => {
       "src/domain",
       "src/application",
       "src/evaluation-engine",
+      "src/coach-engine",
     ]) {
       for (const file of await sourceFiles(join(ROOT, directory))) {
         for (const specifier of importsOf(file)) {
@@ -269,6 +270,7 @@ describe("dependency direction", () => {
       "src/domain",
       "src/application",
       "src/evaluation-engine",
+      "src/coach-engine",
     ]) {
       for (const file of await sourceFiles(join(ROOT, directory))) {
         for (const specifier of importsOf(file)) {
@@ -308,7 +310,12 @@ describe("dependency direction", () => {
 
   it("keeps Prisma inside the infrastructure layer", async () => {
     const prismaImporters: string[] = [];
-    for (const directory of ["src/domain", "src/application", "src/evaluation-engine"]) {
+    for (const directory of [
+      "src/domain",
+      "src/application",
+      "src/evaluation-engine",
+      "src/coach-engine",
+    ]) {
       for (const file of await sourceFiles(join(ROOT, directory))) {
         for (const specifier of importsOf(file)) {
           if (
@@ -364,7 +371,7 @@ describe("dependency direction", () => {
     for (const directory of ["src/presentation", "src/app"]) {
       for (const file of await sourceFiles(join(ROOT, directory))) {
         const source = readFileSync(file, "utf8");
-        if (/getPrismaClient|createPrismaClient|createRepositories|createKnowledgeServices|createDefaultEvaluator/.test(source)) {
+        if (/getPrismaClient|createPrismaClient|createRepositories|createKnowledgeServices|createDefaultEvaluator|createDesignCoachIfAvailable/.test(source)) {
           builders.push(relative(ROOT, file));
         }
       }
@@ -460,5 +467,61 @@ describe("dependency direction", () => {
     expect(callers).toEqual([
       "src/application/use-cases/compare-attempts.ts",
     ]);
+  });
+
+  it("keeps the coach engine free of frameworks and infrastructure", async () => {
+    expect(await violations("src/coach-engine", FORBIDDEN_IN_ENGINE)).toEqual([]);
+  });
+
+  it("lets the coach engine depend only on the domain, application ports, and the evaluation engine's shared prompt helpers", async () => {
+    // The coach reuses `renderDesign`, `neutraliseFences` and the evidence schema
+    // shape from `src/evaluation-engine/ai` rather than duplicating them — the one
+    // deliberate exception to "engines don't depend on each other" in this
+    // codebase, and this test is what keeps that exception narrow: it still may
+    // not reach into infrastructure, Next.js, React, or a vendor SDK.
+    const outside: string[] = [];
+    for (const file of await sourceFiles(join(ROOT, "src/coach-engine"))) {
+      for (const specifier of importsOf(file)) {
+        if (
+          specifier.startsWith("@/") &&
+          !specifier.startsWith("@/domain/") &&
+          !specifier.startsWith("@/application/ports/") &&
+          !specifier.startsWith("@/evaluation-engine/")
+        ) {
+          outside.push(`${relative(ROOT, file)} imports "${specifier}"`);
+        }
+      }
+    }
+
+    expect(outside).toEqual([]);
+  });
+
+  it("finds coach engine sources to check, so a passing result is meaningful", async () => {
+    const files = await sourceFiles(join(ROOT, "src/coach-engine"));
+
+    expect(files.length).toBeGreaterThan(3);
+  });
+
+  it("keeps the coach on the provider port rather than a vendor", async () => {
+    const specifiers = importsOf(join(ROOT, "src/coach-engine/design-coach.ts"));
+
+    expect(specifiers).toContain("@/application/ports/llm-provider");
+    expect(specifiers.some((entry) => /groq|openai/i.test(entry))).toBe(false);
+  });
+
+  it("keeps LLMDesignCoach construction out of application, presentation and UI", async () => {
+    // `AskDesignCoach` only ever calls `.ask()` on whatever `DesignCoach` it was
+    // handed — it never constructs one. Only the composition root, which is
+    // allowed to wire a concrete adapter to a port, may write `new LLMDesignCoach`.
+    const callers: string[] = [];
+    for (const directory of ["src/presentation", "src/app", "src/application"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        if (readFileSync(file, "utf8").includes("new LLMDesignCoach")) {
+          callers.push(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect(callers).toEqual([]);
   });
 });

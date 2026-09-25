@@ -13,7 +13,13 @@ import {
   toSubmissionResponse,
 } from "./dto";
 import { toAttemptComparisonResponse } from "./comparison-dto";
-import { idSchema, saveDraftSchema, submitSchema } from "./design-schema";
+import { toCoachAnswerResponse } from "./coach-dto";
+import {
+  askCoachSchema,
+  idSchema,
+  saveDraftSchema,
+  submitSchema,
+} from "./design-schema";
 import { json, toErrorResponse } from "./http-error";
 
 /**
@@ -286,6 +292,35 @@ export async function handleCompareAttempts(
     });
 
     return json(200, toAttemptComparisonResponse(result));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+/**
+ * Asks the design coach one question about one attempt.
+ *
+ * Ownership is not checked here before delegating, the same as
+ * `handleCompareAttempts`: `AskDesignCoach` takes the learner id itself and
+ * enforces it before touching the attempt, because the check belongs beside the
+ * load it protects, not duplicated in the handler above it.
+ */
+export async function handleAskDesignCoach(
+  services: ApiServices,
+  attemptId: string,
+  request: Request,
+): Promise<Response> {
+  try {
+    const id = idSchema.parse(attemptId);
+    const body = askCoachSchema.parse(await readJson(request));
+
+    const result = await services.askDesignCoach.execute({
+      attemptId: id,
+      learnerId: services.learnerId,
+      question: body.question,
+    });
+
+    return json(200, toCoachAnswerResponse(result));
   } catch (error) {
     return toErrorResponse(error);
   }

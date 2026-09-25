@@ -15,9 +15,10 @@ import {
 import { RetryEvaluationButton } from "@/app/_components/retry-evaluation-button";
 import { AttemptStatusPill, EvaluationStatusPill } from "@/app/_components/status-pill";
 import { READABLE_CRITERION } from "@/app/_components/criterion-labels";
+import { EvidenceBlock } from "@/app/_components/evidence-block";
+import { CoachPanel } from "@/app/_components/coach-panel";
 import type {
   CriterionResultResponse,
-  EvidenceResponse,
   FeedbackItemResponse,
 } from "@/presentation/api/dto";
 import { readAttemptReview } from "@/presentation/server/read-model";
@@ -71,6 +72,8 @@ export default async function ReviewPage({
           <EvaluationStatusPill status={evaluation?.status ?? null} />
         </div>
       </div>
+
+      <CoachPanel attemptId={attempt.id} />
 
       {evaluation === null && (
         <div className="empty">
@@ -410,31 +413,4 @@ function Judgement({ result }: { readonly result: CriterionResultResponse }) {
       </div>
     </article>
   );
-}
-
-/**
- * Evidence is rendered as text inside a plain element. Learner content is never
- * interpreted as markup: React escapes it, and no raw-HTML injection API is used
- * anywhere in this application — an architecture test enforces that.
- */
-function EvidenceBlock({
-  evidence,
-}: {
-  readonly evidence: readonly EvidenceResponse[];
-}) {
-  return (
-    <>
-      {evidence.map((one) => (
-        <p className="evidence" key={evidenceKey(one)}>
-          {one.entity}
-          {one.field === undefined ? "" : ` · ${one.field}`}
-          {one.value === undefined ? "" : `\n${one.value}`}
-        </p>
-      ))}
-    </>
-  );
-}
-
-function evidenceKey(evidence: EvidenceResponse): string {
-  return `${evidence.entity}|${evidence.field ?? ""}|${evidence.value ?? ""}`;
 }

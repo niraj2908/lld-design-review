@@ -5,7 +5,8 @@ import { FEEDBACK_PRIORITIES } from "@/domain/feedback/feedback-item";
 import { EVALUATION_CRITERIA } from "@/domain/problem/rubric";
 import type { JsonSchema } from "@/application/ports/llm-provider";
 
-const evidenceSchema = z.object({
+/** Shared with the coach engine's response schema: the same evidence shape, one definition. */
+export const evidenceSchema = z.object({
   entity: z.string().min(1),
   field: z.enum(EVIDENCE_FIELDS).optional(),
   value: z.string().min(1).optional(),

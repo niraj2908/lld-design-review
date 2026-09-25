@@ -90,3 +90,41 @@ export class EvaluationExecutionError extends ApplicationError {
     );
   }
 }
+
+export class CoachQuestionInvalidError extends ApplicationError {
+  readonly code = "COACH_QUESTION_INVALID";
+
+  constructor(readonly detail: { readonly reason: string }) {
+    super(detail.reason);
+  }
+}
+
+/**
+ * There is no deterministic fallback for coaching the way there is for
+ * evaluation: without a configured model there is nothing to ask. Distinct from
+ * `CoachExecutionError` so a caller — and a learner — can tell "this environment
+ * has no coach" from "the coach was asked and something went wrong".
+ */
+export class CoachNotAvailableError extends ApplicationError {
+  readonly code = "COACH_NOT_CONFIGURED";
+
+  constructor() {
+    super(
+      "The design coach is not available in this environment. It needs a configured language model.",
+    );
+  }
+}
+
+export class CoachExecutionError extends ApplicationError {
+  readonly code = "COACH_EXECUTION_FAILED";
+
+  constructor(
+    readonly detail: { readonly attemptId: string },
+    cause: unknown,
+  ) {
+    super(
+      "The coach could not answer that just now. Nothing about your attempt was changed, and you can try asking again.",
+      { cause },
+    );
+  }
+}

@@ -50,8 +50,8 @@ describe("readGroqConfig", () => {
     ).toBe("another-model-id");
   });
 
-  it("defaults to Llama 3.3 70B on Groq, declared in exactly one place", () => {
-    expect(DEFAULT_GROQ_MODEL).toBe("llama-3.3-70b-versatile");
+  it("defaults to gpt-oss-120b on Groq, declared in exactly one place", () => {
+    expect(DEFAULT_GROQ_MODEL).toBe("openai/gpt-oss-120b");
     expect(readGroqConfig({ GROQ_API_KEY: "k" }).model).toBe(DEFAULT_GROQ_MODEL);
   });
 

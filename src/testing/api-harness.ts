@@ -1,7 +1,9 @@
 import { GetProblem } from "@/application/use-cases/get-problem";
 import { ListAttempts } from "@/application/use-cases/list-attempts";
 import { ListProblems } from "@/application/use-cases/list-problems";
+import { AskDesignCoach } from "@/application/use-cases/ask-design-coach";
 import { CompareAttempts } from "@/application/use-cases/compare-attempts";
+import type { DesignCoach } from "@/application/ports/design-coach";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { ApiServices } from "@/presentation/api/handlers";
 import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
@@ -42,6 +44,8 @@ export function createApiHarness(
   options: {
     readonly problems?: readonly Problem[];
     readonly evaluator?: DesignEvaluator;
+    /** `undefined` (the default) exercises the "no coach configured" path, same as a real environment with no model key. */
+    readonly coach?: DesignCoach;
     readonly learnerId?: string;
   } = {},
 ): ApiHarness {
@@ -84,6 +88,13 @@ export function createApiHarness(
       problems,
       submissions,
       evaluations,
+    }),
+    askDesignCoach: new AskDesignCoach({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
+      coach: options.coach,
     }),
     evaluateAttempt: new EvaluateAttempt({
       attempts,
