@@ -790,6 +790,7 @@ select:disabled {
 /* Utilities the pages use instead of one-off inline styles. */
 .flush { margin-top: 0; }
 .spaced { margin-bottom: var(--s-3); }
+.spaced-top { margin-top: var(--s-3); }
 .soft { color: var(--ink-soft); }
 .indent-flush { padding-left: var(--s-4); }
 .grow { flex: 1; }
@@ -856,9 +857,12 @@ select:disabled {
 
 .meter > span {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--ok);
-  transition: width 200ms ease-out;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 200ms ease-out;
 }
 
 /* ------------------------------------------------------------- action bar -- */
@@ -1057,6 +1061,124 @@ details.grounding[open] > summary { border-bottom: 1px solid var(--line); }
 
 .meta-list dt { color: var(--ink-faint); }
 .meta-list dd { margin: 0; color: var(--ink-soft); font-family: var(--mono); overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------- design evolution -- */
+
+/*
+ * The evolution summary is a row of plain numbers with a sign and a label, never
+ * a chart: there is one axis (before/after) and a handful of counts, which a
+ * sentence-shaped number reads faster than a bar ever would.
+ */
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-size: var(--t-h3);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  color: var(--ink-faint);
+  font-size: var(--t-caption);
+}
+
+.stat-positive .stat-value { color: var(--ok); }
+.stat-negative .stat-value { color: var(--danger); }
+
+/*
+ * A change list is the "+ SpotAllocator / ~ ParkingLot" list from the design
+ * spec: one row per element, an icon carrying the kind, the name, and — only for
+ * a modified element — an indented note underneath naming what changed. Colour
+ * marks the icon alone, never the row background, and the icon is always paired
+ * with a shape (a different glyph per kind), never colour by itself.
+ */
+.change-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.change-row:last-child { border-bottom: 0; }
+
+.change-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.change-row-main svg { flex: none; width: 15px; height: 15px; }
+.change-added svg { color: var(--ok); }
+.change-removed svg { color: var(--danger); }
+.change-modified svg { color: var(--accent); }
+.change-unchanged svg { color: var(--ink-faint); }
+
+.change-name { font-family: var(--mono); font-size: var(--t-small); }
+.change-removed .change-name { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--n-400); }
+
+.change-note {
+  padding-left: calc(15px + var(--s-2));
+  color: var(--ink-soft);
+  font-size: var(--t-caption);
+}
+
+.change-quote {
+  margin: 2px 0 0 calc(15px + var(--s-2));
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--t-caption);
+  max-width: var(--measure);
+}
+
+.quote-before { text-decoration: line-through; text-decoration-color: var(--n-400); color: var(--ink-soft); }
+.quote-after { color: var(--ink); }
+
+/* Coverage transitions reuse the same row shape with a directional icon. */
+.coverage-row svg { flex: none; width: 15px; height: 15px; }
+.coverage-gained svg { color: var(--ok); }
+.coverage-lost svg { color: var(--danger); }
+.coverage-covered svg { color: var(--ink-faint); }
+.coverage-uncovered svg { color: var(--n-400); }
+
+/* Attempt selection on the history page. */
+.compare-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.compare-picker input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.compare-picker input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.5; }
 
 /* --------------------------------------------------------- editor internals -- */
 

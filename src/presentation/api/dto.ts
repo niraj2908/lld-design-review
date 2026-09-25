@@ -334,7 +334,7 @@ export function toEvaluationResponse(
   };
 }
 
-function toEvidence(evidence: EvidenceResponse): EvidenceResponse {
+export function toEvidence(evidence: EvidenceResponse): EvidenceResponse {
   return {
     entity: evidence.entity,
     ...(evidence.field === undefined ? {} : { field: evidence.field }),

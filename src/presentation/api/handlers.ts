@@ -12,6 +12,7 @@ import {
   toProblemResponse,
   toSubmissionResponse,
 } from "./dto";
+import { toAttemptComparisonResponse } from "./comparison-dto";
 import { idSchema, saveDraftSchema, submitSchema } from "./design-schema";
 import { json, toErrorResponse } from "./http-error";
 
@@ -256,6 +257,35 @@ export async function handleRetryEvaluation(
       status: result.evaluationStatus,
       attemptStatus: result.attemptStatus,
     });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+/**
+ * Design evolution between two of the learner's own attempts.
+ *
+ * Ownership is not checked here before delegating, unlike the single-attempt
+ * handlers above: `CompareAttempts` takes the learner id itself and enforces both
+ * attempts belong to it before anything else runs, because this is a
+ * cross-attempt read and the guard belongs where both ids are already in hand.
+ */
+export async function handleCompareAttempts(
+  services: ApiServices,
+  attemptId: string,
+  otherAttemptId: string,
+): Promise<Response> {
+  try {
+    const attemptAId = idSchema.parse(attemptId);
+    const attemptBId = idSchema.parse(otherAttemptId);
+
+    const result = await services.compareAttempts.execute({
+      attemptAId,
+      attemptBId,
+      learnerId: services.learnerId,
+    });
+
+    return json(200, toAttemptComparisonResponse(result));
   } catch (error) {
     return toErrorResponse(error);
   }

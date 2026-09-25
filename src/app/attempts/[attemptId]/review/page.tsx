@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { RetryEvaluationButton } from "@/app/_components/retry-evaluation-button";
 import { AttemptStatusPill, EvaluationStatusPill } from "@/app/_components/status-pill";
+import { READABLE_CRITERION } from "@/app/_components/criterion-labels";
 import type {
   CriterionResultResponse,
   EvidenceResponse,
@@ -24,24 +25,6 @@ import { readAttemptReview } from "@/presentation/server/read-model";
 export const dynamic = "force-dynamic";
 
 const PASSING = new Set(["STRONG", "ADEQUATE"]);
-
-const READABLE_CRITERION: Readonly<Record<string, string>> = {
-  STRUCTURAL_VALIDITY: "Structural validity",
-  REQUIREMENT_COVERAGE: "Requirement coverage",
-  DESIGN_COMPLETENESS: "Design completeness",
-  EDGE_CASE_COVERAGE: "Edge cases recorded",
-  DESIGN_DECISIONS: "Decisions recorded",
-  RESPONSIBILITY: "Responsibility quality",
-  COHESION: "Cohesion",
-  COUPLING: "Coupling",
-  ENCAPSULATION: "Encapsulation",
-  ABSTRACTION: "Abstraction",
-  EXTENSIBILITY: "Extensibility",
-  DESIGN_REASONING: "Design reasoning",
-  EDGE_CASES: "Edge-case reasoning",
-  TESTABILITY: "Testability",
-  REQUIREMENT_UNDERSTANDING: "Requirement understanding",
-};
 
 export default async function ReviewPage({
   params,

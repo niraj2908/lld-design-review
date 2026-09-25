@@ -343,7 +343,7 @@ export function AttemptWorkspace({
               >
                 <span
                   style={{
-                    width: `${problem.requirements.length === 0 ? 0 : Math.round((mapped.size / problem.requirements.length) * 100)}%`,
+                    transform: `scaleX(${problem.requirements.length === 0 ? 0 : mapped.size / problem.requirements.length})`,
                   }}
                 />
               </div>

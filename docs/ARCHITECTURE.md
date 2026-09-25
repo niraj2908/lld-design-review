@@ -387,6 +387,67 @@ contains an answer-key phrase or a class declaration. A stored answer would quie
 turn retrieval into comparison and contradict the product's premise that several
 designs can be right.
 
+## Design evolution
+
+Milestone 8 compares two of a learner's own attempts at the same problem. The
+architecture question it raises is where "comparison" belongs, and the answer
+follows the same rule as everything else in this document: a pure semantic
+operation over value objects is domain; touching a repository, an evaluation or an
+attempt's lifecycle is application; wire shape is presentation; rendering is UI.
+
+```text
+CompareAttempts (application)
+  loads both attempts, checks ownership + same problem + not-the-same-attempt,
+  loads their designs and evaluations
+        │
+        ▼
+buildAttemptComparison (domain, src/domain/comparison)
+  a pure function of two designs, one requirement list, one attempt's prior
+  findings and both attempts' criterion results — no repository, no evaluator,
+  no HTTP, nothing it could not be handed as plain values in a unit test
+        │
+        ▼
+toAttemptComparisonResponse (presentation, src/presentation/api/comparison-dto.ts)
+  maps the result to the wire shape; the comparison page renders it
+```
+
+**Comparison is derived from immutable data, never persisted as its own
+aggregate.** There is no migration for milestone 8. A submission is deep-frozen
+once created and an evaluation's outcome is written once it completes, so the two
+inputs to a comparison never change under it — recomputing on every request is
+exactly as current as a cached row would be, at the cost of nothing to keep in
+sync and nothing that could silently go stale after a retry re-evaluates one side.
+Two architecture tests hold this: one restates the domain sweep specifically for
+`src/domain/comparison`, and one asserts `buildAttemptComparison` is called from
+exactly `CompareAttempts` and nowhere else — a route handler or a page calling it
+directly would bypass the ownership and same-problem checks that only the use
+case performs.
+
+**Identity is name-based, and the domain says so rather than hiding it.** A class
+or interface's `id` in the structured-design wire format is a client-generated
+editor session key (see `structuredDesignSchema`), never persisted identity, and a
+decision or edge case has no id or name at all. `src/domain/comparison/identity.ts`
+makes the resulting rule explicit: two elements are "the same" only when their
+trimmed name (or, for a relationship, both endpoints; for a decision or edge case,
+the exact statement) matches. A rename with nothing else changed is indistinguishable
+from a removal and a fresh addition, and is reported as exactly that — the
+alternative, guessing at continuity from a name alone, risks the opposite mistake of
+treating two unrelated elements that happen to share a name as continuous.
+
+**Feedback resolution stays inside the domain and stays conservative.** It reuses
+`buildDesignElementIndex` — the same lookup `validateEvidence` uses to ground new
+evidence — to ask whether a prior finding's named entities still exist under that
+name in the later design. The full rule, and why `STILL_PRESENT` is checked before
+`ADDRESSED`, is in `feedback-resolution.ts`'s own doc comment and in the README's
+[Design evolution](../README.md#design-evolution) section.
+
+**No LLM in the comparison path.** Every comparator in `src/domain/comparison` is
+deterministic: same two inputs, same output, every time, and testable without a
+key, a network call, or a fixture that records a real model's answer. A narrative
+layer over the structured comparison — "here is what this evolution means" in
+prose — is a plausible later milestone, but it would sit in front of this output,
+never inside it.
+
 ## Persistence design notes
 
 **Normalized design elements.** Classes, interfaces, relationships, decisions,

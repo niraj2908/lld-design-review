@@ -30,6 +30,9 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   ATTEMPT_INVALID_STATE: 409,
   EVALUATION_INVALID_STATE: 409,
   DUPLICATE_ENTITY: 409,
+  // Both attempts exist and are visible to the caller; comparing them is simply not
+  // a valid request — the same attempt twice, or two different problems.
+  COMPARISON_INVALID: 409,
 
   // The request parsed, but what it carries breaks the rules of a design.
   DESIGN_INVALID: 422,

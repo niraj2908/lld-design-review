@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "border-left: 2px solid var(--accent-line);",
+        "createdAt": "2026-09-25T02:38:37.716Z",
+        "reason": "M7 audit: the .evidence block is a blockquote-style marker for a quotation from the learner's own submission (see comment above the rule), not a generic card decoration — it is the single, deliberate exception noted in the M7 UI/UX audit report, thin (2px) and using the desaturated accent-line token rather than a saturated accent."
+      }
+    ]
+  }
+}

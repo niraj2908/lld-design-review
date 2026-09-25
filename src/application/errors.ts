@@ -54,6 +54,24 @@ export class UnsupportedSubmissionFormatError extends ApplicationError {
   }
 }
 
+export class InvalidComparisonError extends ApplicationError {
+  readonly code = "COMPARISON_INVALID";
+
+  constructor(
+    readonly detail: {
+      readonly reason: "SAME_ATTEMPT" | "DIFFERENT_PROBLEM";
+      readonly attemptAId: string;
+      readonly attemptBId: string;
+    },
+  ) {
+    super(
+      detail.reason === "SAME_ATTEMPT"
+        ? "An attempt cannot be compared with itself."
+        : "Only two attempts on the same problem can be compared with each other.",
+    );
+  }
+}
+
 export class EvaluationExecutionError extends ApplicationError {
   readonly code = "EVALUATION_EXECUTION_FAILED";
 

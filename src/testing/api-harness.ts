@@ -1,6 +1,7 @@
 import { GetProblem } from "@/application/use-cases/get-problem";
 import { ListAttempts } from "@/application/use-cases/list-attempts";
 import { ListProblems } from "@/application/use-cases/list-problems";
+import { CompareAttempts } from "@/application/use-cases/compare-attempts";
 import type { DesignEvaluator } from "@/application/ports/evaluator";
 import type { ApiServices } from "@/presentation/api/handlers";
 import { RuleBasedEvaluator } from "@/evaluation-engine/rule-based-evaluator";
@@ -77,6 +78,12 @@ export function createApiHarness(
       submissions,
       evaluations,
       clock,
+    }),
+    compareAttempts: new CompareAttempts({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
     }),
     evaluateAttempt: new EvaluateAttempt({
       attempts,

@@ -13,6 +13,8 @@ import type {
   ProblemListItemResponse,
   ProblemResponse,
 } from "../api/dto";
+import { toAttemptComparisonResponse } from "../api/comparison-dto";
+import type { AttemptComparisonResponse } from "../api/comparison-dto";
 import type { StructuredDesign } from "@/domain/design/structured-design";
 import type { EvaluationStatus } from "@/domain/evaluation/evaluation-status";
 
@@ -119,4 +121,62 @@ export async function readAttemptReview(
   } catch {
     return null;
   }
+}
+
+export type AttemptComparisonRead =
+  | { readonly ok: true; readonly data: AttemptComparisonResponse }
+  | { readonly ok: false; readonly code: string; readonly message: string };
+
+/**
+ * The comparison page's own read, distinct from the others above: a failed
+ * comparison is not "not found", it is one of a small number of named reasons
+ * (the same attempt twice, two different problems, a missing or unowned
+ * attempt), and the page has real, different things to say for each — so this
+ * keeps the failure's code rather than flattening every failure into `null`.
+ */
+/**
+ * Codes this function recognises well enough to trust their own message —
+ * exactly the ones `CompareAttempts` itself throws, each written to be shown to
+ * a learner. Anything else (an infrastructure error that reached here
+ * untranslated, for instance) gets a fixed, safe message instead: `.message` on
+ * an arbitrary `Error` is not vetted for what it might contain, the same reason
+ * `http-error.ts` never shows one for a code it does not recognise.
+ */
+const KNOWN_COMPARISON_ERROR_CODES = new Set([
+  "ATTEMPT_NOT_FOUND",
+  "PROBLEM_NOT_FOUND",
+  "COMPARISON_INVALID",
+]);
+
+export async function readAttemptComparison(
+  attemptId: string,
+  otherAttemptId: string,
+): Promise<AttemptComparisonRead> {
+  const services = getApiServices();
+  try {
+    const result = await services.compareAttempts.execute({
+      attemptAId: attemptId,
+      attemptBId: otherAttemptId,
+      learnerId: services.learnerId,
+    });
+    return { ok: true, data: toAttemptComparisonResponse(result) };
+  } catch (error) {
+    const code = codeOf(error);
+    return {
+      ok: false,
+      code,
+      message:
+        KNOWN_COMPARISON_ERROR_CODES.has(code) && error instanceof Error
+          ? error.message
+          : "The comparison could not be completed.",
+    };
+  }
+}
+
+function codeOf(error: unknown): string {
+  if (typeof error !== "object" || error === null) {
+    return "INTERNAL_ERROR";
+  }
+  const code = (error as { readonly code?: unknown }).code;
+  return typeof code === "string" ? code : "INTERNAL_ERROR";
 }

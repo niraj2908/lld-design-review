@@ -1,3 +1,4 @@
+import { CompareAttempts } from "@/application/use-cases/compare-attempts";
 import { EvaluateAttempt } from "@/application/use-cases/evaluate-attempt";
 import { GetAttempt } from "@/application/use-cases/get-attempt";
 import { GetAttemptHistory } from "@/application/use-cases/get-attempt-history";
@@ -52,6 +53,7 @@ export interface UseCases {
   readonly getAttempt: GetAttempt;
   readonly getAttemptHistory: GetAttemptHistory;
   readonly retryEvaluation: RetryEvaluation;
+  readonly compareAttempts: CompareAttempts;
 }
 
 export function createRepositories(prisma: PrismaClient): Repositories {
@@ -112,6 +114,12 @@ export function createUseCases(
       submissions,
       evaluations,
       clock,
+    }),
+    compareAttempts: new CompareAttempts({
+      attempts,
+      problems,
+      submissions,
+      evaluations,
     }),
   };
 }

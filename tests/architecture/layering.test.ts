@@ -424,4 +424,41 @@ describe("dependency direction", () => {
       ),
     ).toEqual(["@prisma/client"]);
   });
+
+  it("keeps design comparison a pure function of other domain modules alone", async () => {
+    // A stricter, comparison-specific restatement of the domain sweep above: no
+    // evaluator, no provider, no knowledge or embedding dependency of any kind can
+    // sneak into how two designs are compared, because that is exactly the kind of
+    // dependency that would make a comparison non-deterministic or dependent on an
+    // API key being configured.
+    const offenders: string[] = [];
+    for (const file of await sourceFiles(join(ROOT, "src/domain/comparison"))) {
+      for (const specifier of importsOf(file)) {
+        if (!specifier.startsWith(".") && !specifier.startsWith("..")) {
+          offenders.push(`${relative(ROOT, file)} imports "${specifier}"`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps CompareAttempts the only caller of buildAttemptComparison", async () => {
+    // The comparison domain function trusts its caller to have already checked
+    // ownership, same-problem, and not-the-same-attempt. Nothing outside the one
+    // use case that performs those checks may call it directly — not a route
+    // handler, not a page, not a future use case that forgets the guards.
+    const callers: string[] = [];
+    for (const directory of ["src/presentation", "src/app", "src/application"]) {
+      for (const file of await sourceFiles(join(ROOT, directory))) {
+        if (readFileSync(file, "utf8").includes("buildAttemptComparison")) {
+          callers.push(relative(ROOT, file));
+        }
+      }
+    }
+
+    expect(callers).toEqual([
+      "src/application/use-cases/compare-attempts.ts",
+    ]);
+  });
 });

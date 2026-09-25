@@ -6,7 +6,7 @@ resubmit — the product is the review loop, not a score.
 
 Full product and engineering intent lives in `DESIGNREVIEW_MASTER_SPEC.md`.
 
-## Status: milestone 7 — the learner workflow
+## Status: milestone 8 — design evolution
 
 Milestone 1 delivered the framework-independent core: domain model, attempt and
 evaluation state machines, deterministic design validation, application ports and
@@ -80,12 +80,27 @@ What that does and does not mean:
   model, knowledge version, embedding model, and one citation row per passage the
   judge was shown.
 
-Milestone 7 makes it usable: a Next.js application and a JSON API over the same
+Milestone 7 made it usable: a Next.js application and a JSON API over the same
 application use cases, so a learner can go from the problem library to a completed
 review in a browser.
 
-Not yet built: the Design Coach, attempt comparison, the async dispatcher and
-authentication.
+Milestone 8 adds design evolution — comparing two of a learner's own attempts at the
+same problem:
+
+- a pure, framework-free comparator in `src/domain/comparison` that diffs classes,
+  interfaces, relationships, decisions and edge cases; tracks requirement coverage
+  transitions; and checks a prior evaluation's findings against a later design,
+  deterministically, with no model call,
+- `CompareAttempts`, the one use case allowed to call it, which loads both
+  attempts, enforces ownership and the same-problem rule, and orders them
+  chronologically regardless of which id was requested first,
+- `GET /api/attempts/:id/compare/:otherId` and a comparison page at
+  `/attempts/compare`, reachable from a picker on the attempts history screen,
+- the comparison is **derived, not persisted** — nothing new in the schema; see
+  [Design evolution](#design-evolution) below for why.
+
+Not yet built: the Design Coach, an AI-generated narrative over the comparison, the
+async dispatcher and authentication.
 
 ## Running it
 
@@ -117,10 +132,13 @@ embedded locally.
 /attempts/[id]/review  summary, what is working, priority improvements,
                      structural checks, design review, what grounded it
 /attempts            every attempt, with its status and its review
+                     → pick two attempts on the same problem
+/attempts/compare    what changed, what improved, what regressed, what remains
 ```
 
 Submitting freezes a design. A second attempt on the same problem sits alongside the
-first, which is what makes design evolution possible later.
+first, which is what makes design evolution — comparing that first attempt against
+the second — possible.
 
 ## The interface
 
@@ -156,6 +174,83 @@ All of it lives in `src/app/globals.css` as design tokens. Tailwind was named in
 original stack note but is not installed; adding a styling toolchain in the milestone
 that builds the learner loop would have bought risk rather than speed.
 
+## Design evolution
+
+A learner's second attempt at a problem is only useful if they can see what changed
+and whether it addressed what the first attempt's review raised. That comparison —
+not a generic JSON diff, but classes, interfaces, relationships, decisions, edge
+cases, requirement coverage, prior feedback and evaluation criteria compared on their
+own terms — is what milestone 8 adds.
+
+**Comparison is derived, not persisted.** There is no `attempt_comparison` table.
+Both attempts, their submissions and their evaluations are already immutable once
+submitted, so a comparison recomputed from them is always current, always
+reproducible from the same two ids, and costs nothing to store. Persisting it would
+only invite the two to drift — a re-evaluated attempt whose stored comparison forgot
+to update, for instance. If comparisons ever need to be fast at a scale where
+recomputing them on every request is the bottleneck, that is a cache to add later
+in front of an unchanged read, not a reason to model it as a stored aggregate now.
+
+**The comparison model** lives entirely in `src/domain/comparison`, framework-free
+and with no port of its own — it never touches a repository, an evaluator or a
+provider, only plain values already loaded by `CompareAttempts`:
+
+```text
+buildAttemptComparison(designBefore, designAfter, requirements, previousFeedback, criteriaBefore, criteriaAfter)
+  ├── compareDesigns          → classes, interfaces, relationships, decisions, edge cases
+  ├── compareRequirementCoverage → per-requirement UNCOVERED_TO_COVERED / COVERED_TO_UNCOVERED / unchanged
+  ├── resolveFeedback         → ADDRESSED / STILL_PRESENT / UNCERTAIN / NOT_COMPARABLE, per prior finding
+  ├── evolveCriteria          → IMPROVED / REGRESSED / CHANGED / UNCHANGED / NOT_COMPARABLE, per criterion
+  └── summarizeComparison     → counts, plus a reference (never prose) to the single most
+                                significant addressed finding and the single most significant
+                                regression, when either is clear enough to name
+```
+
+Every element kind carries one of four change kinds — `ADDED`, `REMOVED`,
+`MODIFIED`, `UNCHANGED` — and the UI shows only the first three by default.
+
+**Identity is by name, and that is a real limitation, stated rather than hidden.**
+A class or interface's `id` in the wire format is a client-generated editor session
+key, never persisted identity (see `structuredDesignSchema`), and a decision or edge
+case has no id or name at all — only the text of the decision or the situation
+described. So comparison identifies "the same element across two attempts" the only
+way the stored data supports: by trimmed name for classes and interfaces, by
+endpoints for a relationship, by exact statement text for a decision or edge case.
+A learner who renames `ParkingLot` to `Garage` with nothing else changed sees one
+class removed and one added, never a guessed-at "renamed" — the alternative would be
+overclaiming an identity nothing in the submission actually establishes, and doing
+that wrongly in the other direction (treating two unrelated classes that happen to
+share a name as continuous) would be worse.
+
+**Feedback resolution is deterministic and deliberately conservative.** Given a
+prior finding and the later design, in priority order:
+
+1. No evidence on the finding → `NOT_COMPARABLE`, nothing concrete to check.
+2. The finding's exact quoted text is still present, verbatim, on the same named
+   entity → `STILL_PRESENT`. Checked first, and wins over every other signal,
+   because this is the one case where a false "addressed" would be a real harm —
+   the literal problem is unmistakably still there.
+3. Every entity the finding named is gone from the later design under that exact
+   name → `ADDRESSED`. The strongest deterministic signal available, and still
+   only ever shown as "likely addressed" — never "fixed" or "solved" — because a
+   name disappearing proves the target changed, not that the underlying concern
+   was resolved well.
+4. Anything else → `UNCERTAIN`.
+
+**Criteria are compared one at a time, never as a single score.** Assessments rank
+`STRONG > ADEQUATE > NEEDS_IMPROVEMENT > MISSING`; a criterion missing from either
+side is `NOT_COMPARABLE` rather than guessed at as an improvement or a new concern,
+because the two evaluations may simply have run different evaluators — a
+deterministic-only run has no semantic criteria at all, and treating that as a
+design change would blame or credit the design for something else entirely.
+
+**Ownership is enforced by the use case, not the route.** `CompareAttempts` takes
+the requesting learner's id and checks both attempts belong to it before loading
+anything else; a mismatch is `ATTEMPT_NOT_FOUND` (404), the same as a genuinely
+missing attempt, never a 403 that would confirm the other attempt exists. Comparing
+an attempt with itself, or two attempts on different problems, is `COMPARISON_INVALID`
+(409) — a request that is well-formed but cannot describe an evolution.
+
 ## API
 
 All JSON, all over the same application use cases the pages use. No endpoint touches
@@ -173,10 +268,12 @@ a repository.
 | POST | `/api/attempts/:id/evaluate` | run the review (idempotent) |
 | GET | `/api/attempts/:id/evaluation` | the stored review |
 | POST | `/api/attempts/:id/retry-evaluation` | retry a failed review |
+| GET | `/api/attempts/:id/compare/:otherId` | design evolution between two attempts |
 
 Errors are a single envelope — `{ error: { code, message, issues? } }` — mapped from
 the typed application and domain errors: 400 invalid request, 404 not found, 409
-invalid state or duplicate, 422 a design the domain refuses, 502 the review's
+invalid state, duplicate, or an impossible comparison (the same attempt twice, or
+two different problems), 422 a design the domain refuses, 502 the review's
 dependency failed, 500 anything unexpected. No stack trace, no driver message, and
 no provider detail reaches a client.
 

@@ -15,6 +15,7 @@ import { PrismaKnowledgeRepository } from "@/infrastructure/knowledge/prisma-kno
 import { KNOWLEDGE_DOCUMENTS } from "@/infrastructure/knowledge/seed/knowledge-catalogue";
 import type { ApiServices } from "@/presentation/api/handlers";
 import {
+  handleCompareAttempts,
   handleEvaluateAttempt,
   handleGetAttempt,
   handleGetEvaluation,
@@ -152,6 +153,103 @@ function learnerDesign(requirementIds: readonly string[]) {
     })),
   };
 }
+
+/**
+ * A second attempt at the same problem, restructured to split the two
+ * responsibilities `review`'s P2 finding named on `ParkingLot`: allocating a
+ * spot, and settling the fee when the vehicle leaves.
+ */
+function improvedLearnerDesign(requirementIds: readonly string[]) {
+  return {
+    classes: [
+      {
+        name: "SpotAllocator",
+        responsibility: "Allocates a compatible spot to an admitted vehicle.",
+        attributes: [{ name: "levels", type: "Level[]" }],
+        methods: [{ name: "park" }],
+      },
+      {
+        name: "FeeSettlement",
+        responsibility: "Settles the amount owed when a vehicle exits.",
+        attributes: [],
+        methods: [{ name: "exit" }],
+      },
+      {
+        name: "Ticket",
+        responsibility: "Records where and when a vehicle was parked.",
+        attributes: [{ name: "spotId", type: "string" }],
+        methods: [],
+      },
+    ],
+    interfaces: [
+      {
+        name: "PricingStrategy",
+        responsibility: "Turns a finished stay into an amount owed.",
+        methods: [{ name: "calculateFee" }],
+      },
+    ],
+    relationships: [
+      {
+        source: "SpotAllocator",
+        target: "Ticket",
+        type: "COMPOSITION" as const,
+      },
+      {
+        source: "FeeSettlement",
+        target: "Ticket",
+        type: "DEPENDENCY" as const,
+      },
+      {
+        source: "FeeSettlement",
+        target: "PricingStrategy",
+        type: "DEPENDENCY" as const,
+      },
+    ],
+    decisions: [
+      {
+        decision: "Keep pricing behind PricingStrategy.",
+        rationale: "The brief says tariffs change independently of allocation.",
+        tradeoff: "An extra indirection for a site with one fixed tariff.",
+      },
+    ],
+    edgeCases: [
+      {
+        description: "No compatible spot is free.",
+        expectedBehavior: "Entry is refused without issuing a ticket.",
+      },
+      {
+        description: "A ticket is presented for settlement twice.",
+        expectedBehavior: "The second settlement attempt is rejected.",
+      },
+    ],
+    requirementMappings: requirementIds.map((requirementId) => ({
+      requirementId,
+      references: [{ entity: "SpotAllocator" }],
+    })),
+  };
+}
+
+const improvedReview = {
+  criteria: [
+    {
+      criterion: "ABSTRACTION",
+      assessment: "STRONG",
+      evidence: [
+        {
+          entity: "FeeSettlement",
+          field: "responsibility",
+          value: "Settles the amount owed",
+        },
+      ],
+      confidence: 0.81,
+    },
+  ],
+  strengths: [
+    "Allocation and fee settlement are now separate responsibilities.",
+  ],
+  priorityImprovements: [],
+  summary: "Responsibility is now separated between allocation and settlement.",
+};
 
 describe("the learner journey through the API", () => {
   it("carries a learner from the problem list to a completed review", async () => {
@@ -295,6 +393,78 @@ describe("the learner journey through the API", () => {
     expect(first?.evaluationStatus).toBe("COMPLETED");
     // The first submission is untouched by the new attempt.
     expect(await harness.prisma.submission.count()).toBe(1);
+
+    // 11. Modify the design in the second attempt, addressing the first review's
+    // concern, and evaluate it with a different scripted response — a different
+    // FakeLLMProvider instance, since the fake is scripted once for its lifetime.
+    await handleSaveDraft(
+      services,
+      second.attempt.id,
+      jsonRequest({ design: improvedLearnerDesign(requirementIds) }, "PUT"),
+    );
+    const secondSubmit = await handleSubmitAttempt(
+      services,
+      second.attempt.id,
+      jsonRequest({}),
+    );
+    expect(secondSubmit.status).toBe(201);
+
+    const secondLlm = FakeLLMProvider.answering(improvedReview, "some-model-id");
+    const secondServices = apiServices(secondLlm);
+    const secondEvaluate = await handleEvaluateAttempt(
+      secondServices,
+      second.attempt.id,
+    );
+    expect(secondEvaluate.status).toBe(201);
+    const secondEvaluateBody = await readBody<{ status: string }>(secondEvaluate);
+    expect(secondEvaluateBody.status).toBe("COMPLETED");
+
+    // 12. Open the comparison and verify it surfaces real, meaningful change —
+    // not a generic JSON diff, and nothing fabricated.
+    const compareResponse = await handleCompareAttempts(
+      secondServices,
+      attempt.id,
+      second.attempt.id,
+    );
+    expect(compareResponse.status).toBe(200);
+    const comparisonBody = await readBody<{
+      earlier: { attemptNumber: number };
+      later: { attemptNumber: number };
+      classChanges: { kind: string; name: string }[];
+      feedbackEvolution: { status: string; what: string }[];
+      criterionEvolutions: { criterion: string; trend: string }[];
+      summary: {
+        totalStructuralChanges: number;
+        feedbackAddressed: number;
+        criteriaImproved: number;
+      };
+    }>(compareResponse);
+
+    expect(comparisonBody.earlier.attemptNumber).toBe(1);
+    expect(comparisonBody.later.attemptNumber).toBe(2);
+    // ParkingLot split into two classes: a real, checkable structural change.
+    expect(comparisonBody.classChanges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "REMOVED", name: "ParkingLot" }),
+        expect.objectContaining({ kind: "ADDED", name: "SpotAllocator" }),
+        expect.objectContaining({ kind: "ADDED", name: "FeeSettlement" }),
+      ]),
+    );
+    // The first review's P2 finding about ParkingLot reads as likely addressed —
+    // never as definitively "fixed".
+    const resolved = comparisonBody.feedbackEvolution.find(
+      (item) => item.what === "Exit settlement sits on the lot.",
+    );
+    expect(resolved?.status).toBe("ADDRESSED");
+    // The semantic criterion moved from ADEQUATE to STRONG.
+    expect(comparisonBody.criterionEvolutions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ criterion: "ABSTRACTION", trend: "IMPROVED" }),
+      ]),
+    );
+    expect(comparisonBody.summary.totalStructuralChanges).toBeGreaterThan(0);
+    expect(comparisonBody.summary.feedbackAddressed).toBe(1);
+    expect(comparisonBody.summary.criteriaImproved).toBe(1);
   });
 
   it("keeps a learner's hostile design text as data all the way through", async () => {
